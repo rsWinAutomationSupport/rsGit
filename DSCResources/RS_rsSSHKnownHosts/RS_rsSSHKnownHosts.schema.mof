@@ -1,0 +1,8 @@
+﻿[ClassVersion("1.0.0"), FriendlyName("rsSSHKnownHosts")]
+class RS_rsSSHKnownHosts : OMI_BaseResource
+{
+    [key, Description("Desired Number of Devices")] string path;
+    [write,Description("Maxium Devices for this Configuration")] string gitIps[];
+    [write,Description("The Base Name for the Device without the number suffix")] string gitRsa;
+
+};
