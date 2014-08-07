@@ -66,15 +66,20 @@ function Set-TargetResource
                     New-Item $Destination -ItemType Directory -Force 
                 }
                 chdir $Destination
-                Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone $Source"
-                Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
+                Write-Verbose "git clone --branch $branch $Source"
+                Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
             }
         
         else {
             chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
+            Write-Verbose "git checkout $branch"
             Start "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
-            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "pull --rebase"
+
+            Write-Verbose "git reset --hard"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "reset --hard"
+
+            Write-Verbose "git pull"
+            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "pull"
         }
     }
     if ($Ensure -eq "Absent")
