@@ -1,30 +1,4 @@
-﻿Function Invoke-Process {
-    Param($FileName,$Arguments,$timeout)
-    if (!($timeout)) {$timeout = 60}
-    $proc = New-Object System.Diagnostics.Process
-    $proc.StartInfo = New-Object System.Diagnostics.ProcessStartInfo -Property @{
-        FileName = $FileName
-	    Arguments = $Arguments
-	    CreateNoWindow = $true
-	    RedirectStandardError = $true
-	    RedirectStandardOutput = $true
-	    UseShellExecute = $false
-    }
-    $proc.Start() | Out-Null
-    if (!($proc.WaitForExit($timeout*1000))) {$proc.kill()}
-    $stderr = $proc.StandardError.ReadToEnd()
-    $stdout = $proc.StandardOutput.ReadToEnd()
-    $proc.close()
-    $proc = $null
-    $result = @()
-    $result += New-Object psObject -Property @{
-        'stdOut'=$stdout
-        'stdErr'=$stderr
-    } 
-    return $result
-}
-
-function Get-TargetResource
+﻿function Get-TargetResource
 {
     [OutputType([Hashtable])]
     param (
@@ -39,13 +13,19 @@ function Get-TargetResource
         $Destination,
         [parameter(Mandatory = $true)]
         [string]
-        $Branch
+        $Branch,
+        [string]
+        $Version,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Name
     )
     @{
         Destination = $Destination
         Source = $Source
         Ensure = $Ensure
         Branch = $Branch
+        Version = $Version
     }  
 }
 
@@ -65,7 +45,12 @@ function Set-TargetResource
         $Destination,
         [parameter(Mandatory = $true)]
         [string]
-        $Branch
+        $Branch,
+        [string]
+        $Version,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Name
     )
     try {
         Start-Service Browser
@@ -81,19 +66,14 @@ function Set-TargetResource
                     New-Item $Destination -ItemType Directory -Force 
                 }
                 chdir $Destination
-                Write-Verbose "git clone $branch"
                 Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone $Source"
-                Write-Verbose "git checkout $branch"
                 Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
             }
         
         else {
             chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
-            Write-Verbose "git checkout $branch"
             Start "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
-            Write-Verbose "git pull --rebase"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "pull --rebase"
-            Write-Verbose "git reset --hard"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "reset --hard"
         }
     }
@@ -126,7 +106,12 @@ function Test-TargetResource
         $Destination,
         [parameter(Mandatory = $true)]
         [string]
-        $Branch
+        $Branch,
+        [string]
+        $Version,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Name
     )
     if ($Ensure -eq "Present")
     {
