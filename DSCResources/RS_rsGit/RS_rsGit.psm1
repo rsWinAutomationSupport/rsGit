@@ -73,8 +73,8 @@ function Set-TargetResource
         else {
             chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
             Write-Verbose "git checkout $branch"
-            Start "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
-
+            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
+            
             Write-Verbose "git reset --hard"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "reset --hard"
 
