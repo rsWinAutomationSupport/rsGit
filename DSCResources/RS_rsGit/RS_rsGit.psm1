@@ -52,10 +52,12 @@ function Set-TargetResource
         [string]
         $Name
     )
-    try {
+    try 
+    {
         Start-Service Browser
     }
-    catch {
+    catch 
+    {
         Write-EventLog -LogName DevOps -Source RS_rsGit -EntryType Error -EventId 1002 -Message "Failed to Start Browser `n $_.Exception.Message"
     }
     if ($Ensure -eq "Present")
@@ -70,7 +72,8 @@ function Set-TargetResource
                 Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
             }
         
-        else {
+        else 
+        {
             chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
             Write-Verbose "git checkout $branch"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
@@ -85,15 +88,18 @@ function Set-TargetResource
     if ($Ensure -eq "Absent")
     {
         if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
+        Write-Verbose "Removing git"
         remove-item -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -Recurse -Force
     }
-    try {
+    try 
+    {
         Stop-Service Browser
     }
-    catch {
+    catch 
+    {
         Write-EventLog -LogName DevOps -Source RS_rsGit -EntryType Error -EventId 1002 -Message "Failed to Stop Browser `n $_.Exception.Message"
     }
-   } 
+}
 
 function Test-TargetResource
 {
@@ -118,13 +124,6 @@ function Test-TargetResource
         [string]
         $Name
     )
-    if ($Ensure -eq "Present")
-    {
-        return $false
-    }
-    else
-    {
-        return $false
-    }
+    return $false
 }
 Export-ModuleMember -Function *-TargetResource
