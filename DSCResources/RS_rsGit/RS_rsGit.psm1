@@ -71,7 +71,10 @@ function Set-TargetResource
         else 
         {
             chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
-            Write-Verbose "git checkout $branch"
+            Write-Verbose "git checkout master;git reset --hard; git clean -f -d"
+            Start -Wait "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git pull;"""
+
+<#          Write-Verbose "git checkout $branch"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
             
             Write-Verbose "git reset --hard"
@@ -82,6 +85,7 @@ function Set-TargetResource
 
             Write-Verbose "git pull"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "pull"
+#>
         }
     }
     if ($Ensure -eq "Absent")
