@@ -81,6 +81,9 @@ function Set-TargetResource
             Write-Verbose "git reset --hard"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "reset --hard"
 
+            Write-Verbose "git clean -f -d"
+            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clean -f -d"
+
             Write-Verbose "git pull"
             Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "pull"
         }
