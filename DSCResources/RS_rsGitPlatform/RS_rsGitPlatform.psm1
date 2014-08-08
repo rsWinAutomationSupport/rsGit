@@ -14,18 +14,16 @@
         [parameter(Mandatory = $true)]
         [string]
         $Branch,
-        [string]
-        $Version,
         [parameter(Mandatory = $true)]
         [string]
         $Name
     )
     @{
+        Name = $Name
         Destination = $Destination
         Source = $Source
         Ensure = $Ensure
         Branch = $Branch
-        Version = $Version
     }  
 }
 
@@ -46,8 +44,6 @@ function Set-TargetResource
         [parameter(Mandatory = $true)]
         [string]
         $Branch,
-        [string]
-        $Version,
         [parameter(Mandatory = $true)]
         [string]
         $Name
@@ -114,8 +110,6 @@ function Test-TargetResource
         [parameter(Mandatory = $true)]
         [string]
         $Branch,
-        [string]
-        $Version,
         [parameter(Mandatory = $true)]
         [string]
         $Name
