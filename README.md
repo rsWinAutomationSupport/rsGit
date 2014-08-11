@@ -4,7 +4,7 @@ rsGit
 rsGit Git
 {
     Name = "rsGit"
-    Source = "https://github.com/smbmwin/rsGit.git"
+    Source = "https://github.com/AutomationSupport/rsGit.git"
     Destination = "C:\Program Files\WindowsPowerShell\Modules\"
     Branch = "master"
     Ensure = "Present"
@@ -12,7 +12,7 @@ rsGit Git
 rsGit Versions10
 {
     Name = "Versions"
-    Source = "https://github.com/smbmwin/Versions.git"
+    Source = "https://github.com/AutomationSupport/rsGit.git"
     Destination = "C:\Program Files\WindowsPowerShell\Modules\1.0\"
     Branch = "v1.0"
     Ensure = "Present"
@@ -20,7 +20,7 @@ rsGit Versions10
 rsGit Versions151
 {
     Name = "Versions151"
-    Source = "https://github.com/smbmwin/Versions.git"
+    Source = "https://github.com/AutomationSupport/rsGit.git"
     Destination = "C:\Program Files\WindowsPowerShell\Modules\1.51\"
     DestinationZip = "C:\Versions_1.5.1.zip"
     Branch = "v1.51"
