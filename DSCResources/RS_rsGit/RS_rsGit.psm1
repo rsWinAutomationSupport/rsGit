@@ -16,11 +16,14 @@
         $Branch,
         [parameter(Mandatory = $true)]
         [string]
-        $Name
+        $Name,
+        [string]
+        $DestinationZip
     )
     @{
         Name = $Name
         Destination = $Destination
+        DestinationZip = $DestinationZip
         Source = $Source
         Ensure = $Ensure
         Branch = $Branch
@@ -46,7 +49,9 @@ function Set-TargetResource
         $Branch,
         [parameter(Mandatory = $true)]
         [string]
-        $Name
+        $Name,
+        [string]
+        $DestinationZip
     )
     try 
     {
@@ -66,6 +71,14 @@ function Set-TargetResource
                 chdir $Destination
                 Write-Verbose "git clone --branch $branch $Source"
                 Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
+                if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
+                {
+                    Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
+                    Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
+                    New-Item -Path ($DestinationZip + ".checksum") -ItemType file
+                    $hash = (Get-FileHash -Path $DestinationZip).Hash
+                    [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
+                }
             }
         
         else 
@@ -73,19 +86,14 @@ function Set-TargetResource
             chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
             Write-Verbose "git checkout $branch;git reset --hard; git clean -f -d; git pull"
             Start -Wait "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git pull;"""
-
-<#          Write-Verbose "git checkout $branch"
-            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "checkout $Branch"
-            
-            Write-Verbose "git reset --hard"
-            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "reset --hard"
-
-            Write-Verbose "git clean -f -d"
-            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clean -f -d"
-
-            Write-Verbose "git pull"
-            Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "pull"
-#>
+            if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
+            {
+                Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
+                Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
+                New-Item -Path ($DestinationZip + ".checksum") -ItemType file
+                $hash = (Get-FileHash -Path $DestinationZip).Hash
+                [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
+            }
         }
     }
     if ($Ensure -eq "Absent")
@@ -123,7 +131,9 @@ function Test-TargetResource
         $Branch,
         [parameter(Mandatory = $true)]
         [string]
-        $Name
+        $Name,
+        [string]
+        $DestinationZip
     )
     return $false
 }
