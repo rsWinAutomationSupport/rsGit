@@ -22,6 +22,7 @@ rsGit Versions151
     Name = "Versions151"
     Source = "https://github.com/smbmwin/Versions.git"
     Destination = "C:\Program Files\WindowsPowerShell\Modules\1.51\"
+    DestinationZip = "C:\Versions_1.5.1.zip"
     Branch = "v1.51"
     Ensure = "Present"
 }
