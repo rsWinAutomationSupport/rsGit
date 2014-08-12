@@ -73,11 +73,14 @@ function Set-TargetResource
                 Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
                 if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
                 {
-                    Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
-                    Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
-                    New-Item -Path ($DestinationZip + ".checksum") -ItemType file
-                    $hash = (Get-FileHash -Path $DestinationZip).Hash
-                    [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
+                    if( -not (Test-Path -Path $DestinationZip) )
+                    {
+                        Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
+                        Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
+                        New-Item -Path ($DestinationZip + ".checksum") -ItemType file
+                        $hash = (Get-FileHash -Path $DestinationZip).Hash
+                        [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
+                    }
                 }
             }
         
@@ -88,11 +91,14 @@ function Set-TargetResource
             Start -Wait "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git pull;"""
             if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
             {
-                Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
-                Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
-                New-Item -Path ($DestinationZip + ".checksum") -ItemType file
-                $hash = (Get-FileHash -Path $DestinationZip).Hash
-                [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
+                if( -not (Test-Path -Path $DestinationZip) )
+                {
+                    Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
+                    Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
+                    New-Item -Path ($DestinationZip + ".checksum") -ItemType file
+                    $hash = (Get-FileHash -Path $DestinationZip).Hash
+                    [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
+                }
             }
         }
     }
