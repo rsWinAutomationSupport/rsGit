@@ -16,8 +16,7 @@ Function Test-TargetResource {
     )
     
     . "C:\cloud-automation\secrets.ps1"
-    $auth = @{"Authorization" = "Basic "+[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($($d.gU)+":"+$($d.gP)))}
-    $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers $auth -ContentType application/json -Method GET
+    $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method GET
     $pullKeys = $keys | ? title -eq $($d.DDI + "_" + $env:COMPUTERNAME)
     $numberOfKeys = (($pullKeys).id).count
     if($numberOfKeys -ne 1) {
