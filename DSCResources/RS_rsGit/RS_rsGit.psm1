@@ -63,7 +63,11 @@ function Set-TargetResource
             if ( $startmode -eq 'disabled' ){ Set-Service -Name Browser -StartupType Manual }
             Write-Verbose "Starting Browser Service"
             Start-Service Browser
-            #Start-Job -Name "Stop_Browser" -ScriptBlock { Start-Sleep -Seconds 120; Stop-Service Browser; }
+            if ( (Get-Job "Stop_Browser" -ErrorAction SilentlyContinue).count -eq 0 )
+            {
+                Write-Verbose "Creating PSJob to Stop Browser Service"
+                Start-Job -Name "Stop_Browser" -ScriptBlock { Start-Sleep -Seconds 60; Stop-Service Browser; }
+            }
         }
         if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
             if((test-path -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PathType Container) -eq $false) {
