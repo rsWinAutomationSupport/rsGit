@@ -55,15 +55,15 @@ function Set-TargetResource
     )
     if ($Ensure -eq "Present")
     {
-        Write-Verbose "$((Get-Service "Browser").status)"
         if ((Get-Service "Browser").status -eq "Stopped" ) 
         {
 
             Get-Job | ? State -match "Completed" | Remove-Job
-            Set-Service -Name Browser -StartupType Manual
+            $startmode = (Get-WmiObject -Query "Select StartMode From Win32_Service Where Name='browser'").startmode
+            if ( $startmode -eq 'disabled' ){ Set-Service -Name Browser -StartupType Manual }
             Write-Verbose "Starting Browser Service"
             Start-Service Browser
-            Start-Job -Name "Stop_Browser" -ScriptBlock { Start-Sleep -Seconds 120; Stop-Service Browser; }
+            #Start-Job -Name "Stop_Browser" -ScriptBlock { Start-Sleep -Seconds 120; Stop-Service Browser; }
         }
         if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
             if((test-path -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PathType Container) -eq $false) {
@@ -92,7 +92,6 @@ function Set-TargetResource
                 [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
             }
         }
-        Write-Verbose "$((Get-Service "Browser").status)"
     }
     if ($Ensure -eq "Absent")
     {
