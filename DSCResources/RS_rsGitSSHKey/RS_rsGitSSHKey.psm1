@@ -58,7 +58,7 @@ Function Set-TargetResource {
         Write-Verbose "$(Get-Date)Uploading Key to GitHub"
         $sshKey = Get-Content -Path (Join-Path $installedPath -ChildPath "id_rsa.pub")
         $json = @{"title" = "$($d.DDI + "_" + $env:COMPUTERNAME)"; "key" = "$sshKey"} | ConvertTo-Json
-        Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers $auth -ContentType application/json -Body $json -Method Post
+        Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Body $json -Method Post
         Copy-Item -Path (Join-Path $installedPath -ChildPath "id_rsa") -Destination (Join-Path $hostedPath -ChildPath "id_rsa.txt") -Force
         Copy-Item -Path (Join-Path $installedPath -ChildPath "id_rsa.pub") -Destination (Join-Path $hostedPath -ChildPath "id_rsa.pub") -Force     
 }
