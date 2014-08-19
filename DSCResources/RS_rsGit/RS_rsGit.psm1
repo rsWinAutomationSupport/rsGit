@@ -1,4 +1,48 @@
-﻿function Get-TargetResource
+﻿Function New-ResourceZip {
+   param
+   (
+      $modulePath,
+      $outputDir
+   )
+   # Read the module name & version
+   $module = Import-Module $modulePath -PassThru
+   $moduleName = $module.Name
+   $version = $module.Version.ToString()
+   Remove-Module $moduleName
+   
+   $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
+   $outputPath = Join-Path $outputDir $zipFilename
+   if (Test-Path $outputPath) { del $outputPath }
+   # Code to create an 'acceptable' structured ZIP file for DSC
+   # Courtesy of: @Neptune443 (http://blog.cosmoskey.com/powershell/desired-state-configuration-in-pull-mode-over-smb/)
+   [byte[]]$data = New-Object byte[] 22
+   $data[0] = 80
+   $data[1] = 75
+   $data[2] = 5
+   $data[3] = 6
+   [System.IO.File]::WriteAllBytes($outputPath, $data)
+   $acl = Get-Acl -Path $outputPath
+   
+   $shellObj = New-Object -ComObject "Shell.Application"
+   $zipFileObj = $shellObj.NameSpace($outputPath)
+   if ($zipFileObj -ne $null)
+   {
+      $target = get-item $modulePath
+      # CopyHere might be async and we might need to wait for the Zip file to have been created full before we continue
+      # Added flags to minimize any UI & prompts etc.
+      $zipFileObj.CopyHere($target.FullName, 0x14)
+      [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
+      Set-Acl -Path $outputPath -AclObject $acl
+   }
+   else
+   {
+      Throw "Failed to create the zip file"
+   }
+   
+   return $outputPath
+}
+
+function Get-TargetResource
 {
     [OutputType([Hashtable])]
     param (
@@ -87,10 +131,11 @@ function Set-TargetResource
         }
         if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
         {
-            if( -not (Test-Path -Path $DestinationZip) )
+            if( -not (Test-Path -Path $($DestinationZip, $($Source.split("/."))[$i] -join '\')) )
             {
                 Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
-                Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
+                #Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "archive --format zip -o ""$DestinationZip"" $branch"
+                New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip
                 New-Item -Path ($DestinationZip + ".checksum") -ItemType file
                 $hash = (Get-FileHash -Path $DestinationZip).Hash
                 [System.IO.File]::AppendAllText(($DestinationZip + '.checksum'), $hash)
