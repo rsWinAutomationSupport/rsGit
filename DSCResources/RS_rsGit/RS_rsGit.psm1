@@ -59,7 +59,7 @@ Function New-ResourceZip {
           $target = get-item $modulePath
           # CopyHere might be async and we might need to wait for the Zip file to have been created full before we continue
           # Added flags to minimize any UI & prompts etc.
-          Start-Job -Name "copyFile Zip" -ScriptBlock { $zipFileObj.CopyHere($target.FullName, 0x14) }
+          Start-Job -Name "copyFile Zip" -ScriptBlock { powershell $zipFileObj.CopyHere($target.FullName, 0x14) }
           #$zipFileObj.CopyHere($target.FullName, 0x14)
           [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
           Set-Acl -Path $outputPath -AclObject $acl
