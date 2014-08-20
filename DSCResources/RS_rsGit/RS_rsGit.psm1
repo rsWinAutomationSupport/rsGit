@@ -1,4 +1,19 @@
 ﻿Function New-ResourceZip {
+   Add-Type -AssemblyName System.IO.Compression.FileSystem | out-null
+   $module = Import-Module $modulePath -PassThru
+   $moduleName = $module.Name
+   $version = $module.Version.ToString()
+   $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
+   $outputPath = Join-Path $outputDir $zipFilename
+   if(test-path $outputPath){
+      Remove-Item $outputPath -Force
+   }
+   [System.IO.Compression.ZipFile]::CreateFromDirectory($module.ModuleBase,$outputPath)
+   Remove-Module $moduleName
+   return $outputPath
+}
+
+<#Function New-ResourceZip {
    param
    (
       $modulePath,
@@ -40,7 +55,7 @@
    }
    
    return $outputPath
-}
+}#>
 
 function Get-TargetResource
 {
@@ -105,7 +120,7 @@ function Set-TargetResource
       }
       if( (Get-Process ssh.exe -ErrorAction SilentlyContinue).count -ne 0 )
       {
-        Get-Process ssh | Stop-Process
+         Get-Process ssh | Stop-Process
       }
       if ((Get-Service "Browser").status -eq "Stopped" ) 
       {
@@ -144,7 +159,7 @@ function Set-TargetResource
             Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
             $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip
             Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
-            Start-Sleep 4
+            #Start-Sleep 4
             New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
             $hash = (Get-FileHash -Path $resourceZipPath).Hash
             [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
