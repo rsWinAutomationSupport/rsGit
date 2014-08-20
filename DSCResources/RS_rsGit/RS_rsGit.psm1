@@ -127,11 +127,11 @@ function Set-TargetResource
    {
       if( (Get-Process git -ErrorAction SilentlyContinue).count -ne 0 )
       {
-         Get-Process git | Stop-Process
+         Get-Process git | Stop-Process -Force
       }
       if( (Get-Process ssh -ErrorAction SilentlyContinue).count -ne 0 )
       {
-         Get-Process ssh | Stop-Process
+         Get-Process ssh | Stop-Process -Force
       }
       if ((Get-Service "Browser").status -eq "Stopped" ) 
       {
