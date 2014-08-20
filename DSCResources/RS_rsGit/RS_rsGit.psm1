@@ -59,8 +59,7 @@ Function New-ResourceZip {
           $target = get-item $modulePath
           # CopyHere might be async and we might need to wait for the Zip file to have been created full before we continue
           # Added flags to minimize any UI & prompts etc.
-          Start-Job -Name "copyFile Zip" -ScriptBlock { powershell $zipFileObj.CopyHere($target.FullName, 0x14) }
-          #$zipFileObj.CopyHere($target.FullName, 0x14)
+          $zipFileObj.CopyHere($target.FullName, 0x14)
           [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
           Set-Acl -Path $outputPath -AclObject $acl
        }
@@ -167,7 +166,7 @@ function Set-TargetResource
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
       {
          Write-Verbose "Starting Resource Zip"
-         $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip
+         Start-Job -Name "CreateZip" -ScriptBlock { $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip }
          if ( $resourceZipPath -ne $null )
          {
             Write-Verbose "Starting Checksum"
