@@ -3,19 +3,27 @@
    (
       $modulePath,
       $outputDir
-   )   param
+   )
    Add-Type -AssemblyName System.IO.Compression.FileSystem | out-null
    $module = Import-Module $modulePath -PassThru
    $moduleName = $module.Name
    $version = $module.Version.ToString()
    $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
    $outputPath = Join-Path $outputDir $zipFilename
-   if(test-path $outputPath){
-      Remove-Item $outputPath -Force
+   if ( -not (Test-Path $outputPath) ) 
+   { 
+      if(test-path $outputPath){
+         Remove-Item $outputPath -Force
+      }
+      [System.IO.Compression.ZipFile]::CreateFromDirectory($module.ModuleBase,$outputPath)
+      Remove-Module $moduleName
    }
-   [System.IO.Compression.ZipFile]::CreateFromDirectory($module.ModuleBase,$outputPath)
-   Remove-Module $moduleName
+   else
+   {
+      $outputPath = $null
+   }
    return $outputPath
+   
 }
 
 <#Function New-ResourceZip {
