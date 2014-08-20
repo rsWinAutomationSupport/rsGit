@@ -125,11 +125,11 @@ function Set-TargetResource
    )
    if ($Ensure -eq "Present")
    {
-      if( (Get-Process git.exe -ErrorAction SilentlyContinue).count -ne 0 )
+      if( (Get-Process git -ErrorAction SilentlyContinue).count -ne 0 )
       {
          Get-Process git | Stop-Process
       }
-      if( (Get-Process ssh.exe -ErrorAction SilentlyContinue).count -ne 0 )
+      if( (Get-Process ssh -ErrorAction SilentlyContinue).count -ne 0 )
       {
          Get-Process ssh | Stop-Process
       }
