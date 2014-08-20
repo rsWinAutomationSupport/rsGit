@@ -133,14 +133,6 @@ function Set-TargetResource
    )
    if ($Ensure -eq "Present")
    {
-      <#if( (Get-Process git -ErrorAction SilentlyContinue).count -ne 0 )
-      {
-         Get-Process git | Stop-Process -Force
-      }
-      if( (Get-Process ssh -ErrorAction SilentlyContinue).count -ne 0 )
-      {
-         Get-Process ssh | Stop-Process -Force
-      }#>
       if ((Get-Service "Browser").status -eq "Stopped" ) 
       {
          
@@ -162,11 +154,6 @@ function Set-TargetResource
          }
          chdir $Destination
          Write-Verbose "git clone --branch $branch $Source"
-         try {
-         Get-Process ssh | Stop-Process -Force
-         }
-         catch {
-         }
          Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
       }
       
@@ -174,11 +161,6 @@ function Set-TargetResource
       {
          chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
          Write-Verbose "git checkout $branch;git reset --hard; git clean -f -d; git pull"
-         try {
-         Get-Process ssh | Stop-Process -Force
-         }
-         catch {
-         }
          Start -Wait "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git pull;"""
       }
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
