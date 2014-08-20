@@ -141,7 +141,7 @@ function Set-TargetResource
       {
          if( -not (Test-Path -Path $($DestinationZip, $($Source.split("/."))[$i] -join '\')) )
          {
-            Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
+            Write-Verbose "Starting Resource Zip"
             $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip
             Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
             Start-Sleep 4
