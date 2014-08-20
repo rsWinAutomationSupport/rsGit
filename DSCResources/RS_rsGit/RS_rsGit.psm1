@@ -143,7 +143,7 @@ function Set-TargetResource
          {
             Write-Verbose "archive --format zip -o ""$DestinationZip"" $branch"
             $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip
-            Remove-Item -Path ($resourceZipPath + ".checksum") -Force
+            Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
             Start-Sleep 4
             New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
             $hash = (Get-FileHash -Path $resourceZipPath).Hash
