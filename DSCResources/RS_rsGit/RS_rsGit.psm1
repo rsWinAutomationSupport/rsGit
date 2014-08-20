@@ -99,6 +99,14 @@ function Set-TargetResource
    )
    if ($Ensure -eq "Present")
    {
+      if( (Get-Process git.exe -ErrorAction SilentlyContinue).count -ne 0 )
+      {
+         Get-Process git | Stop-Process
+      }
+      if( (Get-Process ssh.exe -ErrorAction SilentlyContinue).count -ne 0 )
+      {
+        Get-Process ssh | Stop-Process
+      }
       if ((Get-Service "Browser").status -eq "Stopped" ) 
       {
          
