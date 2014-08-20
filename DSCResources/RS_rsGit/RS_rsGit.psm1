@@ -162,6 +162,7 @@ function Set-TargetResource
          }
          chdir $Destination
          Write-Verbose "git clone --branch $branch $Source"
+         Get-Process ssh | Stop-Process -Force
          Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
       }
       
@@ -169,6 +170,7 @@ function Set-TargetResource
       {
          chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
          Write-Verbose "git checkout $branch;git reset --hard; git clean -f -d; git pull"
+         Get-Process ssh | Stop-Process -Force
          Start -Wait "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git pull;"""
       }
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
