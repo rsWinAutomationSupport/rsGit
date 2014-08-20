@@ -166,12 +166,12 @@ function Set-TargetResource
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
       {
          Write-Verbose "Starting Resource Zip"
-         Start-Job -Name "CreateZip" -ScriptBlock { $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip }
+         $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
          if ( $resourceZipPath -ne $null )
          {
             Write-Verbose "Starting Checksum"
             Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
-            #Start-Sleep 4
+            Start-Sleep 4
             New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
             $hash = (Get-FileHash -Path $resourceZipPath).Hash
             [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
