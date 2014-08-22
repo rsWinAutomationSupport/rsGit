@@ -1,32 +1,4 @@
-﻿<#Function New-ResourceZip {
-   param
-   (
-      $modulePath,
-      $outputDir
-   )
-   Add-Type -AssemblyName System.IO.Compression.FileSystem | out-null
-   $module = Import-Module $modulePath -PassThru
-   $moduleName = $module.Name
-   $version = $module.Version.ToString()
-   $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
-   $outputPath = Join-Path $outputDir $zipFilename
-   if ( -not (Test-Path $outputPath) ) 
-   { 
-      if(test-path $outputPath){
-         Remove-Item $outputPath -Force
-      }
-      [System.IO.Compression.ZipFile]::CreateFromDirectory($module.ModuleBase,$outputPath)
-      Remove-Module $moduleName
-   }
-   else
-   {
-      $outputPath = $null
-   }
-   return $outputPath
-   
-}#>
-
-Function New-ResourceZip {
+﻿Function New-ResourceZip {
    param
    (
       $modulePath,
@@ -176,7 +148,7 @@ function Set-TargetResource
          if ( $resourceZipPath -ne $null )
          {
             Write-Verbose "Starting Checksum"
-            #Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
             New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
             $hash = (Get-FileHash -Path $resourceZipPath).Hash
             [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
