@@ -63,7 +63,7 @@ Function New-ResourceZip {
           do 
             {
                 $zipCount = $zipFileObj.Items().count
-                Start-sleep -Seconds 1
+                Start-sleep -Milliseconds 50
             }
             While ($zipFileObj.Items().count -lt 1)
             {
