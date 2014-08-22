@@ -178,7 +178,7 @@ function Set-TargetResource
          if ( $resourceZipPath -ne $null )
          {
             Write-Verbose "Starting Checksum"
-            Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
+            #Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
             New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
             $hash = (Get-FileHash -Path $resourceZipPath).Hash
             [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
