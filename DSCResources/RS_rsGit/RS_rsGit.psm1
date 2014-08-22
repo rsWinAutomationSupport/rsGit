@@ -35,7 +35,7 @@
           do 
             {
                 $zipCount = $zipFileObj.Items().count
-                Start-sleep -Milliseconds 50
+                #Start-sleep -Milliseconds 50
             }
             While ($zipFileObj.Items().count -lt 1)
           [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
