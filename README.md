@@ -4,26 +4,26 @@ rsGit
 rsGit Git
 {
     Name = "rsGit"
-    Source = "https://github.com/AutomationSupport/rsGit.git"
+    Source = "https://github.com/rsWinAutomationSupport/rsGit.git"
     Destination = "C:\Program Files\WindowsPowerShell\Modules\"
     Branch = "master"
     Ensure = "Present"
 }
-rsGit Versions10
+rsGit Git1_0
 {
-    Name = "Versions"
-    Source = "https://github.com/AutomationSupport/rsGit.git"
+    Name = "rsGit_1_0"
+    Source = "https://github.com/rsWinAutomationSupport/rsGit.git"
     Destination = "C:\Program Files\WindowsPowerShell\Modules\1.0\"
     Branch = "v1.0"
     Ensure = "Present"
 }
-rsGit Versions151
+rsGit GitZip
 {
-    Name = "Versions151"
-    Source = "https://github.com/AutomationSupport/rsGit.git"
-    Destination = "C:\Program Files\WindowsPowerShell\Modules\1.51\"
-    DestinationZip = "C:\Versions_1.5.1.zip"
-    Branch = "v1.51"
+    Name = "Git_Zip"
+    Source = "https://github.com/rsWinAutomationSupport/rsGit.git"
+    Destination = "C:\Program Files\WindowsPowerShell\Modules\"
+    DestinationZip = "C:\Program Files\WindowsPowerShell\DscService\Modules"
+    Branch = "v1.0"
     Ensure = "Present"
 }
 </pre>
