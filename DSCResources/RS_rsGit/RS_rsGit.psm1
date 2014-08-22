@@ -74,7 +74,9 @@ function Get-TargetResource
       [string]
       $Name,
       [string]
-      $DestinationZip
+      $DestinationZip,
+      [bool]
+      $Logging
    )
    @{
         Name = $Name
@@ -107,7 +109,9 @@ function Set-TargetResource
       [string]
       $Name,
       [string]
-      $DestinationZip
+      $DestinationZip,
+      [bool]
+      $Logging
    )
    $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
    New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
@@ -119,11 +123,11 @@ function Set-TargetResource
          Get-Job | ? State -match "Completed" | Remove-Job
          $startmode = (Get-WmiObject -Query "Select StartMode From Win32_Service Where Name='browser'").startmode
          if ( $startmode -eq 'disabled' ){ Set-Service -Name Browser -StartupType Manual }
-         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Browser Service")
+         if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Browser Service") }
          Start-Service Browser
          if ( (Get-Job "Stop_Browser" -ErrorAction SilentlyContinue).count -eq 0 )
          {
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Creating PSJob to Stop Browser Service")
+            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Creating PSJob to Stop Browser Service") }
             Start-Job -Name "Stop_Browser" -ScriptBlock { Start-Sleep -Seconds 60; Stop-Service Browser; }
          }
       }
@@ -133,23 +137,23 @@ function Set-TargetResource
             New-Item $Destination -ItemType Directory -Force 
          }
          chdir $Destination
-         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git clone --branch $branch $Source")
+         if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git clone --branch $branch $Source") }
          Start -Wait "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
       }
       
       else 
       {
          chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
-         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull")
+         if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") }
          Start -Wait "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git pull;"""
       }
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
       {
-         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip")
+         if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip") }
          $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
          if ( $resourceZipPath -ne $null )
          {
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Checksum")
+            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Checksum") }
             Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
             New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
             $hash = (Get-FileHash -Path $resourceZipPath).Hash
@@ -160,7 +164,7 @@ function Set-TargetResource
    if ($Ensure -eq "Absent")
    {
       if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
-      Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Removing git")
+      if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Removing git") }
       remove-item -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -Recurse -Force
    }
 }
@@ -186,7 +190,9 @@ function Test-TargetResource
       [string]
       $Name,
       [string]
-      $DestinationZip
+      $DestinationZip,
+      [bool]
+      $Logging
    )
    return $false
 }
