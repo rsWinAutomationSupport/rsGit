@@ -60,6 +60,14 @@ Function New-ResourceZip {
           # CopyHere might be async and we might need to wait for the Zip file to have been created full before we continue
           # Added flags to minimize any UI & prompts etc.
           $zipFileObj.CopyHere($target.FullName, 0x14)
+          do 
+            {
+                $zipCount = $zipFileObj.Items().count
+                Start-sleep -Seconds 1
+            }
+            While ($zipFileObj.Items().count -lt 1)
+            {
+            } 
           [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
           Set-Acl -Path $outputPath -AclObject $acl
        }
@@ -171,7 +179,6 @@ function Set-TargetResource
          {
             Write-Verbose "Starting Checksum"
             Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
-            Start-Sleep 4
             New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
             $hash = (Get-FileHash -Path $resourceZipPath).Hash
             [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
