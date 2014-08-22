@@ -66,8 +66,6 @@ Function New-ResourceZip {
                 Start-sleep -Milliseconds 50
             }
             While ($zipFileObj.Items().count -lt 1)
-            {
-            } 
           [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
           Set-Acl -Path $outputPath -AclObject $acl
        }
