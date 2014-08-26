@@ -113,8 +113,12 @@ function Set-TargetResource
       [bool]
       $Logging
    )
-   $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-   New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+   try
+   {
+       $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+       New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+   }
+   catch {}
    if ($Ensure -eq "Present")
    {
       if ((Get-Service "Browser").status -eq "Stopped" ) 
