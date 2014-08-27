@@ -101,7 +101,7 @@ Function Set-TargetResource {
    }
    foreach($currentHook in $currentHooks) {
       try {
-         $currentHooks = Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks", $($curentHook.id) -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Delete
+         Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks", $($curentHook.id) -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Delete
       }
       catch {
          if($Logging) {
