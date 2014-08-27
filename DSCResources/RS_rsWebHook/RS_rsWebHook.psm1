@@ -1,4 +1,4 @@
-﻿Function Get-Target-Resource {
+﻿Function Get-TargetResource {
    param (
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Name,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Repo,
