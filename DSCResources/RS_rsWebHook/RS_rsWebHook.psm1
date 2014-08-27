@@ -118,3 +118,4 @@ Function Set-TargetResource {
       Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to create github Webhook `n $($_.Exception.Message)"
    }
 }
+Export-ModuleMember -Function *-TargetResource
