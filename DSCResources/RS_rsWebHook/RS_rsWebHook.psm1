@@ -10,7 +10,7 @@
    if(!([System.Diagnostics.EventLog]::SourceExists($myLogSource))) {
       New-Eventlog -LogName "DevOps" -Source $myLogSource
    }
-   . "C:\cloud-automation\scripts.ps1"
+   . "C:\cloud-automation\secrets.ps1"
    try {
       $currentHooks = Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks" -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Get
    }
@@ -53,7 +53,7 @@ Function Test-TargetResource {
    if(!([System.Diagnostics.EventLog]::SourceExists($myLogSource))) {
       New-Eventlog -LogName "DevOps" -Source $myLogSource
    }
-   . "C:\cloud-automation\scripts.ps1"
+   . "C:\cloud-automation\secrets.ps1"
    try {
       $currentHooks = Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks" -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Get
    }
@@ -89,7 +89,7 @@ Function Set-TargetResource {
    if(!([System.Diagnostics.EventLog]::SourceExists($myLogSource))) {
       New-Eventlog -LogName "DevOps" -Source $myLogSource
    }
-   . "C:\cloud-automation\scripts.ps1"
+   . "C:\cloud-automation\secrets.ps1"
    . "$($d.wD, $d.mR, "PullServerInfo.ps1" -join '\')"
    try {
       $currentHooks = Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks" -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Get
