@@ -74,6 +74,9 @@ Function Test-TargetResource {
    if($($currentHooks.count) -ge 1) {
       return $false
    }
+   if($Ensure -eq "Absent") {
+      return $false
+   }
    return $true
 }
 
@@ -109,13 +112,14 @@ Function Set-TargetResource {
          }
       }
    }
-   $((($("http://", $($pullserverInfo.pullserverPublicIp) -join ''), $Port -join ':'), "/Deployment/SmokeTest/_self?source=" -join ''), $($d.mR) -join '')
-   $body = @{"name" = "web"; "active" = "true"; "events" = @("push"); "config" = @{"url" = $((($("http://", $($pullserverInfo.pullserverPublicIp) -join ''), $Port -join ':'), "/Deployment/SmokeTest/_self?source=" -join ''), $($d.mR) -join ''); "content_type" = "json"} } | ConvertTo-Json -Depth 3
-   try {
-      Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $($d.mR), "hooks" -join '/') -Body $body -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Post
-   }
-   catch {
-      Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to create github Webhook `n $($_.Exception.Message)"
+   if($Ensure -eq "Present") {
+      $body = @{"name" = "web"; "active" = "true"; "events" = @("push"); "config" = @{"url" = $((($("http://", $($pullserverInfo.pullserverPublicIp) -join ''), $Port -join ':'), "/Deployment/SmokeTest/_self?source=" -join ''), $($d.mR) -join ''); "content_type" = "json"} } | ConvertTo-Json -Depth 3
+      try {
+         Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $($d.mR), "hooks" -join '/') -Body $body -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Post
+      }
+      catch {
+         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to create github Webhook `n $($_.Exception.Message)"
+      }
    }
 }
 Export-ModuleMember -Function *-TargetResource
