@@ -37,6 +37,7 @@ Function Test-TargetResource {
     if(($pullKeys.key -eq ((Get-Content (Join-Path $installedPath -ChildPath "id_rsa.pub")).Split("==")[0] + "==")) -and ((Get-Content -Path (Join-Path $installedPath -ChildPath "id_rsa.pub")) -eq (Get-Content -Path (Join-Path $hostedPath -ChildPath "id_rsa.pub")))) {
         return $true
     }
+    return $true
 
 }
 
