@@ -6,20 +6,20 @@
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Ensure,
       [bool]$Logging
    )
-   <#$myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+   $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
    if(!([System.Diagnostics.EventLog]::SourceExists($myLogSource))) {
       New-Eventlog -LogName "DevOps" -Source $myLogSource
-   }#>
+   }
    . "C:\cloud-automation\secrets.ps1"
    try {
       $currentHooks = Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks" -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Get
    }
    catch {
       if($Logging) {
-         #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
+        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
       }
    }
-   if($($currentHooks.count) -eq 1) {
+   <#if($($currentHooks.count) -eq 1) {
       $returnHash = @{}
       if($currentHooks.name) { $returnHash.Name = $currentHooks.name } else { $returnHash.Name = "Not Defined"}
       if($($currentHooks.config).url) { $returnHash.Repo = $($currentHooks.config).url } else { $returnHash.Repo = "Not Defined"}
@@ -29,7 +29,7 @@
       $returnHash.Logging = $Logging
       return $returnHash
    }
-   else {
+   else {#>
       @{
    Name = $Name
    Repo = $Repo
@@ -37,7 +37,7 @@
    Ensure = $Ensure
    Logging = $Logging
    }
-   }
+   #}
    
 }
 
@@ -59,7 +59,7 @@ Function Test-TargetResource {
    }
    catch {
       if($Logging) {
-         #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
+         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
       }
    }
    if($currentHooks.name -ne $Name) {
@@ -88,10 +88,10 @@ Function Set-TargetResource {
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Ensure,
       [bool]$Logging
    )
-   <#$myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+   $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
    if(!([System.Diagnostics.EventLog]::SourceExists($myLogSource))) {
       New-Eventlog -LogName "DevOps" -Source $myLogSource
-   }#>
+   }
    . "C:\cloud-automation\secrets.ps1"
    . "$($d.wD, $d.mR, "PullServerInfo.ps1" -join '\')"
    try {
@@ -99,7 +99,7 @@ Function Set-TargetResource {
    }
    catch {
       if($Logging) {
-         #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
+         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
       }
    }
    foreach($currentHook in $currentHooks) {
@@ -108,7 +108,7 @@ Function Set-TargetResource {
       }
       catch {
          if($Logging) {
-            #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to DELETE github webhook(s) `n $($_.Exception.Message)"
+            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to DELETE github webhook(s) `n $($_.Exception.Message)"
          }
       }
    }
@@ -118,7 +118,7 @@ Function Set-TargetResource {
          Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $($d.mR), "hooks" -join '/') -Body $body -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Post
       }
       catch {
-         #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to create github Webhook `n $($_.Exception.Message)"
+         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to create github Webhook `n $($_.Exception.Message)"
       }
    }
 }
