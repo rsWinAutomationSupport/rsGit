@@ -16,28 +16,16 @@
    }
    catch {
       if($Logging) {
-        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
+         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
       }
    }
-   <#if($($currentHooks.count) -eq 1) {
-      $returnHash = @{}
-      if($currentHooks.name) { $returnHash.Name = $currentHooks.name } else { $returnHash.Name = "Not Defined"}
-      if($($currentHooks.config).url) { $returnHash.Repo = $($currentHooks.config).url } else { $returnHash.Repo = "Not Defined"}
-      if($Ensure -eq "Present") { $returnHash.Ensure = "Present"}
-      if($Ensure -eq "Absent") { $returnHash.Ensure = "Absent"}
-      if($((($repoHooks.config.url).Split("/")).split(":")[4]).trim()) { $returnHash.Port = $((($repoHooks.config.url).Split("/")).split(":")[4]).trim() }
-      $returnHash.Logging = $Logging
-      return $returnHash
-   }
-   else {#>
-      @{
+   @{
    Name = $Name
    Repo = $Repo
    Port = $Port
    Ensure = $Ensure
    Logging = $Logging
    }
-   #}
    
 }
 
