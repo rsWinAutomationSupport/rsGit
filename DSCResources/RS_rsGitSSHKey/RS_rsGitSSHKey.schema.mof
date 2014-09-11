@@ -3,4 +3,5 @@ class RS_rsGitSSHKey : OMI_BaseResource
 {
 [Key] string installedPath;
 [write] string hostedPath;
+[write] boolean logging;
 };
