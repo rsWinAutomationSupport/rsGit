@@ -2,7 +2,7 @@
    param (
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Name,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Repo,
-      [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][uint32]$Port,
+      [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$PayloadURL,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Ensure,
       [bool]$Logging
    )
@@ -22,7 +22,7 @@
    @{
    Name = $Name
    Repo = $Repo
-   Port = $Port
+   PayloadURL = $PayloadURL
    Ensure = $Ensure
    Logging = $Logging
    }
@@ -33,7 +33,7 @@ Function Test-TargetResource {
    param (
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Name,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Repo,
-      [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][uint32]$Port,
+      [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$PayloadURL,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Ensure,
       [bool]$Logging
    )
@@ -50,21 +50,17 @@ Function Test-TargetResource {
          Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1002 -Message "Failed to retrieve github webhooks `n $($_.Exception.Message)"
       }
    }
-   if($currentHooks.name -ne $Name) {
-      return $false
+   $exists = $false
+   foreach( $currentHook in $currentHooks )
+   {
+        if ( $currentHook.config.url -eq $PayloadURL)
+        {
+            $exists = $true
+        }
    }
-   if($($currentHooks.config).url -ne $repo) {
-      return $false
-   }
-   if($((($repoHooks.config.url).Split("/")).split(":")[4]).trim() -ne $Port) {
-      return $false
-   }
-   if($($currentHooks.count) -ge 1) {
-      return $false
-   }
-   if($Ensure -eq "Absent") {
-      return $false
-   }
+   if( $exists -eq $true -and $Ensure -eq "Absent" ) { return $false }
+   if( $exists -eq $false -and $Ensure -eq "Present" ) { return $false }
+
    return $true
 }
 
@@ -72,7 +68,7 @@ Function Set-TargetResource {
    param (
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Name,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Repo,
-      [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][uint32]$Port,
+      [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$PayloadURL,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Ensure,
       [bool]$Logging
    )
@@ -92,7 +88,10 @@ Function Set-TargetResource {
    }
    foreach($currentHook in $currentHooks) {
       try {
-         Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks", $($currentHook.id) -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Delete
+         if( $currentHook.config.url -eq $PayloadURL )
+         {
+            Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $Repo, "hooks", $($currentHook.id) -join '/') -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Delete
+         }
       }
       catch {
          if($Logging) {
@@ -101,7 +100,7 @@ Function Set-TargetResource {
       }
    }
    if($Ensure -eq "Present") {
-      $body = @{"name" = "web"; "active" = "true"; "events" = @("push"); "config" = @{"url" = $((($("http://", $($pullserverInfo.pullserverPublicIp) -join ''), $Port -join ':'), "/Deployment/SmokeTest/_self?source=" -join ''), $($d.mR) -join ''); "content_type" = "json"} } | ConvertTo-Json -Depth 3
+      $body = @{"name" = "web"; "active" = "true"; "events" = @("push"); "config" = @{"url" = $PayloadURL; "content_type" = "json"} } | ConvertTo-Json -Depth 3
       try {
          Invoke-RestMethod -Uri $("https://api.github.com/repos", $($d.gCA), $($d.mR), "hooks" -join '/') -Body $body -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method Post
       }
