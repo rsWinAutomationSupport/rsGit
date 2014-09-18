@@ -1,6 +1,6 @@
 rsGit
 =====
-<pre>
+```PoSh
 rsGit Git
 {
     Name = "rsGit"
@@ -26,4 +26,4 @@ rsGit GitZip
     Branch = "v1.0"
     Ensure = "Present"
 }
-</pre>
+```
