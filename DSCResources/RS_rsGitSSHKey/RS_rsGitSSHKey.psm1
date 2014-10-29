@@ -16,10 +16,10 @@ Function Test-TargetResource {
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$installedPath,
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$hostedPath,
       [bool]$logging
-
+      
    )
    
-   . "C:\cloud-automation\secrets.ps1"
+   . (Get-rsSecrets)
    $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method GET
    $pullKeys = $keys | ? title -eq $($d.DDI + "_" + $env:COMPUTERNAME)
    $numberOfKeys = (($pullKeys).id).count
@@ -29,43 +29,43 @@ Function Test-TargetResource {
       return $false
    }
    if(!(Test-Path -Path (Join-Path $installedPath -ChildPath "id_rsa"))) {
-   if($logging) {
-      Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa was not found in $installedPath"
+      if($logging) {
+         Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa was not found in $installedPath"
       }
       return $false
    }
    if(!(Test-Path -Path (Join-Path $installedPath -ChildPath "id_rsa.pub"))) {
-   if($logging) {
-      Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa.pub was not found in $installedPath"
+      if($logging) {
+         Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa.pub was not found in $installedPath"
       }
       return $false
    }
    if(!(Test-Path (Join-Path $hostedPath -ChildPath "id_rsa.txt"))) {
       if($logging) {
-      Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa.txt was not found in $hostedPath"
+         Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa.txt was not found in $hostedPath"
       }
       return $false
    }
    if(!(Test-Path (Join-Path $hostedPath -ChildPath "id_rsa.pub"))) {
       if($logging) {
-      Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa.pub was not found in $hostedPath"
+         Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "id_rsa.pub was not found in $hostedPath"
       }
       return $false
    }
    if(($pullKeys.key -eq ((Get-Content (Join-Path $installedPath -ChildPath "id_rsa.pub")).Split("==")[0] + "==")) -and ((Get-Content -Path (Join-Path $installedPath -ChildPath "id_rsa.pub")) -eq (Get-Content -Path (Join-Path $hostedPath -ChildPath "id_rsa.pub")))) {
       if($logging) {
-      Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "Local SSH Key matches SSH Key on github"
+         Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "Local SSH Key matches SSH Key on github"
       }
       return $true
    }
    else {
-   if($logging) {
-      Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "Local SSH Key does not match Key from github"
+      if($logging) {
+         Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "Local SSH Key does not match Key from github"
       }
       return $false
    }
    if($logging) {
-   Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "Default return true"
+      Write-EventLog -LogName DevOps -Source $logSource -EntryType Information -EventId 1000 -Message "Default return true"
    }
    return $true
    
@@ -77,7 +77,7 @@ Function Set-TargetResource {
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$hostedPath,
       [bool]$logging
    )
-   . "C:\cloud-automation\secrets.ps1"
+   . (Get-rsSecrets)
    $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method GET
    $pullKeys = $keys | ? title -eq $($d.DDI + "_" + $env:COMPUTERNAME)
    $numberOfKeys = (($pullKeys).id).count
