@@ -20,8 +20,8 @@ Function Test-TargetResource {
    )
    
    . (Get-rsSecrets)
-   $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method GET
-   $pullKeys = $keys | ? title -eq $($d.DDI + "_" + $env:COMPUTERNAME)
+   $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.git_Oauthtoken)"} -ContentType application/json -Method GET
+   $pullKeys = $keys | ? title -eq $($d.rs_DDI + "_" + $env:COMPUTERNAME)
    $numberOfKeys = (($pullKeys).id).count
    $logSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
    New-EventLog -LogName "DevOps" -Source $logSource -ErrorAction SilentlyContinue
@@ -78,19 +78,19 @@ Function Set-TargetResource {
       [bool]$logging
    )
    . (Get-rsSecrets)
-   $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method GET
-   $pullKeys = $keys | ? title -eq $($d.DDI + "_" + $env:COMPUTERNAME)
+   $keys = Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.git_Oauthtoken)"} -ContentType application/json -Method GET
+   $pullKeys = $keys | ? title -eq $($d.rs_DDI + "_" + $env:COMPUTERNAME)
    $numberOfKeys = (($pullKeys).id).count
    Remove-Item (Join-Path $installedPath -ChildPath "id_rsa*") -Force
    Remove-Item (Join-Path $hostedPath -ChildPath "id_rsa*") -Force
    foreach($pullKey in $pullKeys) {
-      Invoke-RestMethod -Uri $("https://api.github.com/user/keys/" + $pullKey.id) -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Method DELETE
+      Invoke-RestMethod -Uri $("https://api.github.com/user/keys/" + $pullKey.id) -Headers @{"Authorization" = "token $($d.git_Oauthtoken)"} -ContentType application/json -Method DELETE
    }
    ssh-keygen.exe -t rsa -f $($installedPath, 'id_rsa' -join '\') -N """"
    Write-Verbose "$(Get-Date)Uploading Key to GitHub"
    $sshKey = Get-Content -Path (Join-Path $installedPath -ChildPath "id_rsa.pub")
-   $json = @{"title" = "$($d.DDI + "_" + $env:COMPUTERNAME)"; "key" = "$sshKey"} | ConvertTo-Json
-   Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.gAPI)"} -ContentType application/json -Body $json -Method Post
+   $json = @{"title" = "$($d.rs_DDI + "_" + $env:COMPUTERNAME)"; "key" = "$sshKey"} | ConvertTo-Json
+   Invoke-RestMethod -Uri "https://api.github.com/user/keys" -Headers @{"Authorization" = "token $($d.git_Oauthtoken)"} -ContentType application/json -Body $json -Method Post
    Copy-Item -Path (Join-Path $installedPath -ChildPath "id_rsa") -Destination (Join-Path $hostedPath -ChildPath "id_rsa.txt") -Force
    Copy-Item -Path (Join-Path $installedPath -ChildPath "id_rsa.pub") -Destination (Join-Path $hostedPath -ChildPath "id_rsa.pub") -Force     
 }
