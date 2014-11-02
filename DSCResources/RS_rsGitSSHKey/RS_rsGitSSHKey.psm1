@@ -24,7 +24,7 @@ Function Test-TargetResource {
    $pullKeys = $keys | ? title -eq $($d.rs_DDI + "_" + $env:COMPUTERNAME)
    $numberOfKeys = (($pullKeys).id).count
    $logSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-   New-EventLog -LogName "DevOps" -Source $logSource -ErrorAction SilentlyContinue
+   New-rsEventLogSource -logSource $logSource
    if($numberOfKeys -ne 1) {
       return $false
    }
