@@ -6,9 +6,9 @@
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Ensure,
       [bool]$Logging
    )
-   $logSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-   New-rsEventLogSource -logSource $logSource 
    Import-Module rsCommon
+   $logSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+   New-rsEventLogSource -logSource $logSource
    . (Get-rsSecrets)
    try {
       $currentHooks = Invoke-rsRestMethod -Uri $("https://api.github.com/repos", $($d.git_username), $Repo, "hooks" -join '/') -Headers @{"Authorization" = "token $($d.git_Oauthtoken)"} -ContentType application/json -Method Get
@@ -36,9 +36,9 @@ Function Test-TargetResource {
       [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Ensure,
       [bool]$Logging
    )
+   Import-Module rsCommon
    $logSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
    New-rsEventLogSource -logSource $logSource 
-   Import-Module rsCommon
    . (Get-rsSecrets)
    try {
       $currentHooks = Invoke-rsRestMethod -Uri $("https://api.github.com/repos", $($d.git_username), $Repo, "hooks" -join '/') -Headers @{"Authorization" = "token $($d.git_Oauthtoken)"} -ContentType application/json -Method Get
