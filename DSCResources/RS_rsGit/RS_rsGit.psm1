@@ -149,7 +149,12 @@ function Set-TargetResource
       {
          chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
          if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") }
-         Start -Wait -NoNewWindow "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git fetch;git merge remotes/origin/$Branch;"""
+         #Start -Wait -NoNewWindow "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git fetch;git merge remotes/origin/$Branch;"""
+         start -Wait git -ArgumentList "checkout $Branch"
+         start -Wait git -ArgumentList "reset --hard"
+         start -Wait git -ArgumentList "clean -f -d"
+         start -Wait git -ArgumentList "fetch origin $Branch"
+         start -Wait git -ArgumentList "merge remotes/origin/$Branch"
       }
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
       {
