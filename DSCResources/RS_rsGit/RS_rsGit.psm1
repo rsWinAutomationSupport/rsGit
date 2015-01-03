@@ -14,42 +14,42 @@
    $outputPath = Join-Path $outputDir $zipFilename
    if ( -not (Test-Path $outputPath) ) 
    { 
-       # Code to create an 'acceptable' structured ZIP file for DSC
-       # Courtesy of: @Neptune443 (http://blog.cosmoskey.com/powershell/desired-state-configuration-in-pull-mode-over-smb/)
-       [byte[]]$data = New-Object byte[] 22
-       $data[0] = 80
-       $data[1] = 75
-       $data[2] = 5
-       $data[3] = 6
-       [System.IO.File]::WriteAllBytes($outputPath, $data)
-       $acl = Get-Acl -Path $outputPath
-   
-       $shellObj = New-Object -ComObject "Shell.Application"
-       $zipFileObj = $shellObj.NameSpace($outputPath)
-       if ($zipFileObj -ne $null)
-       {
-          $target = get-item $modulePath
-          # CopyHere might be async and we might need to wait for the Zip file to have been created full before we continue
-          # Added flags to minimize any UI & prompts etc.
-          $zipFileObj.CopyHere($target.FullName, 0x14)
-          do 
-            {
-                $zipCount = $zipFileObj.Items().count
-                Start-sleep -Milliseconds 50
-            }
-            While ($zipFileObj.Items().count -lt 1)
-          [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
-          Set-Acl -Path $outputPath -AclObject $acl
-       }
-       else
-       {
-          Throw "Failed to create the zip file"
-       }
-    }
-    else
-    {
-        $outputPath = $null
-    }
+      # Code to create an 'acceptable' structured ZIP file for DSC
+      # Courtesy of: @Neptune443 (http://blog.cosmoskey.com/powershell/desired-state-configuration-in-pull-mode-over-smb/)
+      [byte[]]$data = New-Object byte[] 22
+      $data[0] = 80
+      $data[1] = 75
+      $data[2] = 5
+      $data[3] = 6
+      [System.IO.File]::WriteAllBytes($outputPath, $data)
+      $acl = Get-Acl -Path $outputPath
+      
+      $shellObj = New-Object -ComObject "Shell.Application"
+      $zipFileObj = $shellObj.NameSpace($outputPath)
+      if ($zipFileObj -ne $null)
+      {
+         $target = get-item $modulePath
+         # CopyHere might be async and we might need to wait for the Zip file to have been created full before we continue
+         # Added flags to minimize any UI & prompts etc.
+         $zipFileObj.CopyHere($target.FullName, 0x14)
+         do 
+         {
+            $zipCount = $zipFileObj.Items().count
+            Start-sleep -Milliseconds 50
+         }
+         While ($zipFileObj.Items().count -lt 1)
+         [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
+         Set-Acl -Path $outputPath -AclObject $acl
+      }
+      else
+      {
+         Throw "Failed to create the zip file"
+      }
+   }
+   else
+   {
+      $outputPath = $null
+   }
    
    return $outputPath
 }
@@ -115,8 +115,8 @@ function Set-TargetResource
    )
    try
    {
-       $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-       New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+      $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+      New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
    }
    catch {}
    if ($Ensure -eq "Present")
@@ -149,12 +149,7 @@ function Set-TargetResource
       {
          chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
          if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") }
-         #Start -Wait -NoNewWindow "C:\Program Files (x86)\Git\bin\sh.exe" -ArgumentList "--login -i -c ""git checkout $branch;git reset --hard; git clean -f -d;git fetch;git merge remotes/origin/$Branch;"""
-         start -Wait git -ArgumentList "checkout $Branch"
-         start -Wait git -ArgumentList "reset --hard"
-         start -Wait git -ArgumentList "clean -f -d"
-         start -Wait git -ArgumentList "fetch origin $Branch"
-         start -Wait git -ArgumentList "merge remotes/origin/$Branch"
+         start -Wait 'C:\Program Files (x86)\Git\cmd\git.exe' -ArgumentList "checkout $Branch; reset --hard; clean -f -d; fetch origin $Branch; merge remotes/origin/$Branch"
       }
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
       {
