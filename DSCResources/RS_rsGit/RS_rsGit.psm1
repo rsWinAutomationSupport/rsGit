@@ -78,6 +78,14 @@ function Get-TargetResource
       [bool]
       $Logging
    )
+
+   try
+   {
+      $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+      New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+   }
+   catch {}
+
    @{
         Name = $Name
         Destination = $Destination
@@ -119,6 +127,7 @@ function Set-TargetResource
       New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
    }
    catch {}
+
    if ($Ensure -eq "Present")
    {
       if ((Get-Service "Browser").status -eq "Stopped" ) 
@@ -175,29 +184,205 @@ function Set-TargetResource
 
 function Test-TargetResource
 {
-   [OutputType([boolean])]
-   param (
-      [ValidateSet('Present','Absent')]
-      [string]
-      $Ensure = 'Present',
-      [parameter(Mandatory = $true)]
-      [string]
-      $Source,
-      [parameter(Mandatory = $true)]
-      [ValidateNotNullOrEmpty()]
-      [string]
-      $Destination,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Branch,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Name,
-      [string]
-      $DestinationZip,
-      [bool]
-      $Logging
-   )
-   return $false
+    [OutputType([boolean])]
+    param (
+        [ValidateSet('Present','Absent')]
+        [string]
+        $Ensure = 'Present',
+        [parameter(Mandatory = $true)]
+        [string]
+        $Source,
+        [parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Destination,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Branch,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Name,
+        [string]
+        $DestinationZip,
+        [bool]
+        $Logging
+    )
+
+    try
+    {
+        #$myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+        #New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+    }
+    catch {}
+
+    Write-Verbose "Start Test-TargetResource path: $Destination"
+    
+    if (-not (IsGitRepoUpToDate -RepoPath $Destination -Source $Source))
+    {
+        return $false
+    }
+
+    return $true
 }
+
+function IsGitRepoUpToDate
+{
+    param(
+    	[Parameter(Position=0,Mandatory = $true)][string]$RepoPath,
+        [Parameter(Position=1,Mandatory = $true)][string]$Source
+    ) 
+    
+    if (VerifyGitRepo -RepoPath $RepoPath -Source $Source)
+    {
+        Set-Location $RepoPath
+        $update = ExecGit "fetch origin"
+        
+        if ($update.Length -ne 0)
+        {
+            Write-Verbose "Origin has been updated:`n$update"
+        }
+        
+        $local = ExecGit "rev-parse HEAD"
+        $remote = ExecGit "rev-parse origin/master"
+        
+        Write-Verbose "Comparing comits:`n - Local commit:  $local - Remote commit: $remote"
+        
+        if ($local -eq $remote)
+        {
+            Write-Verbose "Latest local commit matches remote. Checking for uncommited local changes..."
+            
+            $statusOutput = ExecGit "status"
+            if (-not ($statusOutput.Contains("nothing to commit")))
+            {
+                Write-Verbose "Local repo contains uncommited changes! `n$statusOutput"
+                return $false
+            }
+            else
+            {
+                return $true
+            }
+        }
+        else
+        {
+            Write-Verbose "Local repository does not match remote!"
+            return $false
+        }
+    }
+    else
+    {
+        return $false
+    }
+}
+
+function VerifyGitRepo
+{
+    # Confirm that local repository settings are as per current DSC configuration
+    #
+    param(
+		[Parameter(Position=0,Mandatory = $true)][string]$RepoPath,
+        [Parameter(Position=1,Mandatory = $true)][string]$Source
+	) 
+
+    Write-Verbose "Checking local repository path..."
+	if(Test-Path "$RepoPath")
+    {
+        Set-Location $RepoPath
+	    $output = ExecGit "status"
+        $outputRemote = ExecGit "remote -v"       
+    }
+    else
+    {
+        Write-Verbose "Invalid repository path specified: $RepoPath"
+        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Invalid repository path specified: $RepoPath")
+        return $false
+    }
+
+    if(-not ($outputRemote.Contains("origin	$Source (fetch)")))
+    {
+        Write-Verbose "Source repository settings do not match:`nLocal setting: $outputRemote `nDSC Setting: $Source"
+        return $false
+    }
+	
+    if ($output.Contains("fatal"))
+	{
+		Write-Verbose " `n$output"
+        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("$RepoPath `n $output")
+		return $false
+	}
+
+	return $true
+}
+
+function ExecGit
+{
+	param(
+		[Parameter(Mandatory = $true)][string]$args
+	)
+
+    # Default to git command from enviroment path - modify if git is not in path
+    # Possibly move this out into a module configuration file
+    $gitCmd = "git"
+    $location = Get-Location
+
+    try
+    {
+        #Check if location specified for git executable is valid
+	    if (CheckCommand $gitCmd)
+	    {
+	    	Write-Verbose "Executing: git $args"
+
+	        # Capture git output
+	        $psi = New-object System.Diagnostics.ProcessStartInfo 
+	        $psi.CreateNoWindow = $true 
+	        $psi.UseShellExecute = $false 
+	        $psi.RedirectStandardOutput = $true 
+	        $psi.RedirectStandardError = $true 
+	        $psi.FileName = $gitCmd
+            $psi.WorkingDirectory = $location.ToString()
+	        $psi.Arguments = $args
+	        $process = New-Object System.Diagnostics.Process 
+	        $process.StartInfo = $psi
+	        $process.Start() | Out-Null
+	        $process.WaitForExit()
+	        $output = $process.StandardOutput.ReadToEnd() + $process.StandardError.ReadToEnd()
+
+	        return $output
+	    }
+	    else
+	    {
+            Write-Verbose "Git executable not found at $((get-command $gitCmd).path) `n"
+            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git executable not found at $((get-command $gitCmd).path)")
+            Throw "Git executable not found at $((get-command $gitCmd).path)"
+	    }
+    }
+    catch
+    {
+        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git client execution failed with the following error:`n $($Error[0].Exception)")
+        return "fatal: Git executable not found"
+    }
+}
+
+function CheckCommand
+{
+	Param ($command)
+
+	$oldPreference = $ErrorActionPreference
+	$ErrorActionPreference = 'stop'
+
+	try 
+	{
+		if(Get-Command $command)
+		{
+			return $true
+		}
+	}
+	Catch 
+	{
+		return $false
+	}
+	Finally {
+		$ErrorActionPreference=$oldPreference
+	}
+} 
+
 Export-ModuleMember -Function *-TargetResource
