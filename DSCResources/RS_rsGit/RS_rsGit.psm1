@@ -321,10 +321,9 @@ function ExecGit
 		[Parameter(Mandatory = $true)][string]$args
 	)
 
-    # Default to git command from enviroment path - modify if git is not in path
-    # Possibly move this out into a module configuration file
-    #$gitCmd = $gitExe
-    $gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
+    # Conifugraiton and DSC resource-wide variables
+    . ($PSScriptRoot + "\RS_rsGit_settings.ps1")
+    $gitCmd = $global:gitExe
     $location = Get-Location
 
     try
