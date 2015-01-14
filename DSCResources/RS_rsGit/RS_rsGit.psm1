@@ -208,16 +208,18 @@ function Test-TargetResource
         $Logging
     )
 
+    $RepoPath = $Destination + $Name
+
     try
     {
-        #$myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-        #New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+        $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+        New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
     }
     catch {}
 
-    Write-Verbose "Start Test-TargetResource path: $Destination"
+    Write-Verbose "Start Test-TargetResource path: $RepoPath"
     
-    if (-not (IsGitRepoUpToDate -RepoPath $Destination -Source $Source))
+    if (-not (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source))
     {
         return $false
     }
@@ -321,7 +323,8 @@ function ExecGit
 
     # Default to git command from enviroment path - modify if git is not in path
     # Possibly move this out into a module configuration file
-    $gitCmd = "git"
+    #$gitCmd = $gitExe
+    $gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
     $location = Get-Location
 
     try
