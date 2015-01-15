@@ -220,8 +220,6 @@ function Test-TargetResource
         $Logging
     )
 
-    $RepoPath = $Destination + $Name
-
     try
     {
         $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
@@ -229,25 +227,48 @@ function Test-TargetResource
     }
     catch {}
 
-    Write-Verbose "Start Test-TargetResource path: $RepoPath"
-    
-    if (-not (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source -Ensure $Ensure))
-    {
-        return $false
-    }
+    $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
 
-    return $true
+    Write-Verbose "Start Test-TargetResource: $Name"
+    
+    if ($Ensure -eq "Present")
+    {
+        if(Test-Path -Path $RepoPath)
+        {
+            if (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source)
+            {
+                return $true
+            }
+        }
+        else
+        {
+            return $false
+        }
+    }
+    else
+    {
+        if(Test-Path -Path $RepoPath)
+        {
+            if (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source)
+            {
+                return $false
+            }
+        }
+        else
+        {
+            return $true
+        }
+    }
 }
 
 function IsGitRepoUpToDate
 {
     param(
     	[Parameter(Position=0,Mandatory = $true)][string]$RepoPath,
-        [Parameter(Position=1,Mandatory = $true)][string]$Source,
-        [Parameter(Position=2,Mandatory = $true)][string]$Ensure
+        [Parameter(Position=1,Mandatory = $true)][string]$Source
     ) 
     
-    if (VerifyGitRepo -RepoPath $RepoPath -Source $Source -Ensure $Ensure)
+    if (VerifyGitRepo -RepoPath $RepoPath -Source $Source)
     {
         Set-Location $RepoPath
         $update = ExecGit "fetch origin"
@@ -295,52 +316,37 @@ function VerifyGitRepo
     #
     param(
 		[Parameter(Position=0,Mandatory = $true)][string]$RepoPath,
-        [Parameter(Position=1,Mandatory = $true)][string]$Source,
-        [Parameter(Position=2,Mandatory = $true)][string]$Ensure
+        [Parameter(Position=1,Mandatory = $true)][string]$Source
 	) 
 
-    if ($Ensure -contains "Present")
-    {   
-        Write-Verbose "Checking local repository path..."
-	    if(Test-Path "$RepoPath")
-        {
-            Set-Location $RepoPath
-	        $output = ExecGit "status"
-            $outputRemote = ExecGit "remote -v"       
-        }
-        else
-        {
-            Write-Verbose "Invalid repository path specified: $RepoPath"
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Invalid repository path specified: $RepoPath")
-            return $false
-        }
-
-        if(-not ($outputRemote.Contains("origin	$Source (fetch)")))
-        {
-            Write-Verbose "Source repository settings do not match:`nLocal setting: $outputRemote `nDSC Setting: $Source"
-            return $false
-        }
-	    
-        if ($output.Contains("fatal"))
-	    {
-	    	Write-Verbose " `n$output"
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("$RepoPath `n $output")
-	    	return $false
-	    }
-
-	    return $true
+    Write-Verbose "Checking local repository path..."
+	if(Test-Path "$RepoPath")
+    {
+        Set-Location $RepoPath
+	    $output = ExecGit "status"
+        $outputRemote = ExecGit "remote -v"       
     }
     else
     {
-        if(Test-Path $RepoPath)
-        {
-            return $false
-        }
-        else
-        {
-            return $true
-        }
+        Write-Verbose "Invalid repository path specified: $RepoPath"
+        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Invalid repository path specified: $RepoPath")
+        return $false
     }
+
+    if(-not ($outputRemote.Contains("origin	$Source (fetch)")))
+    {
+        Write-Verbose "Source repository settings do not match:`nLocal setting: $outputRemote `nDSC Setting: $Source"
+        return $false
+    }
+	
+    if ($output.Contains("fatal"))
+	{
+		Write-Verbose " `n$output"
+        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("$RepoPath `n $output")
+		return $false
+	}
+
+	return $true
 }
 
 function ExecGit
@@ -415,14 +421,25 @@ function CheckCommand
 	}
 } 
 
-function RemoveRepo
+function SetRepoPath
 {
     param (
-        [Parameter(Position=0,Mandatory = $true)][string]$RepoPath
+        [Parameter(Position=0,Mandatory = $true)][string]$Source,
+        [Parameter(Position=0,Mandatory = $true)][string]$Destination
     )
 
+    if(($Source.split("/.")[0]) -eq "https:")
+    {
+        $i = 5
+    }
+    else
+    {
+        $i = 2
+    }
 
-
+    $RepoPath = Join-Path $Destination -ChildPath ($Source.split("/."))[$i]
+    
+    return $RepoPath
 }
 
 Export-ModuleMember -Function *-TargetResource
