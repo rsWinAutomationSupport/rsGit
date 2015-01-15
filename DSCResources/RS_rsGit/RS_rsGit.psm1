@@ -239,6 +239,10 @@ function Test-TargetResource
             {
                 return $true
             }
+            else
+            {
+                return $false
+            }
         }
         else
         {
@@ -250,6 +254,10 @@ function Test-TargetResource
         if(Test-Path -Path $RepoPath)
         {
             if (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source)
+            {
+                return $true
+            }
+            else
             {
                 return $false
             }
@@ -356,8 +364,12 @@ function ExecGit
 	)
 
     # Conifugraiton and DSC resource-wide variables
-    . ($PSScriptRoot + "\RS_rsGit_settings.ps1")
-    $gitCmd = $global:gitExe
+    
+    #Write-Verbose ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
+    
+    #. ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
+    #$gitCmd = $global:gitExe
+    $gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
     $location = Get-Location
 
     try
