@@ -56,43 +56,101 @@
 
 function Get-TargetResource
 {
-   [OutputType([Hashtable])]
-   param (
-      [ValidateSet('Present','Absent')]
-      [string]
-      $Ensure = 'Present',
-      [parameter(Mandatory = $true)]
-      [string]
-      $Source,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Destination,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Branch,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Name,
-      [string]
-      $DestinationZip,
-      [bool]
-      $Logging
-   )
+    [OutputType([Hashtable])]
+    param (
+       [ValidateSet('Present','Absent')]
+       [string]
+       $Ensure = 'Present',
+       [parameter(Mandatory = $true)]
+       [string]
+       $Source,
+       [parameter(Mandatory = $true)]
+       [string]
+       $Destination,
+       [parameter(Mandatory = $true)]
+       [string]
+       $Branch,
+       [parameter(Mandatory = $true)]
+       [string]
+       $Name,
+       [string]
+       $DestinationZip,
+       [bool]
+       $Logging
+    )
+    
+    try
+    {
+        $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+        New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+    }
+    catch {}
+    
+    $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
+    Write-Verbose "Setting Repopath to $RepoPath"
 
-   try
-   {
-      $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-      New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
-   }
-   catch {}
+    if (Test-Path $RepoPath)
+    {
+        if (IsValidRepo -RepoPath $RepoPath)
+        {
+            Set-Location $RepoPath
+            $ensureResult = "Present"
+            # Retreive current branch and clean-up output
+            $currentBranch = (ExecGit "rev-parse --abbrev-ref HEAD").split()[0]
+            Write-Verbose "Branch: $currentBranch"
 
-   @{
+            # Retrieve current repo origin fetch settings
+            # Split output by line; find one that is listed as (fetch); split by space and list just origin URI
+            $SourceResult = (((ExecGit -args "remote -v").Split("`n") | Where-Object { $_.contains("(fetch)") }) -split "\s+")[1]
+
+            if ($DestinationZip)
+            {
+                if (Test-Path $DestinationZip)
+                {
+                    # Just checking if the file is here - not really doing things properly though
+                    $currentDestZip = $DestinationZip
+                }
+                else
+                {
+                    $currentDestZip = $null
+                }
+            }
+            else
+            {
+                $currentDestZip = $null
+            }
+        }
+        else
+        {
+            $ensureResult = "Absent"
+            $currentBranch = $null
+            $Destination = $null
+            $SourceResult = $null
+            if ($DestinationZip)
+            {
+                $currentDestZip = $null
+            }
+        }
+    }
+    else
+    {
+        $ensureResult = "Absent"
+        $currentBranch = $null
+        $Destination = $null
+        $SourceResult = $null
+        if ($DestinationZip)
+        {
+            $DestinationZip = $null
+        }
+    }
+    
+    @{
         Name = $Name
         Destination = $Destination
-        DestinationZip = $DestinationZip
-        Source = $Source
-        Ensure = $Ensure
-        Branch = $Branch
+        DestinationZip = $currentDestZip
+        Source = $SourceResult
+        Ensure = $ensureResult
+        Branch = $currentBranch
     }  
 }
 
@@ -228,87 +286,190 @@ function Test-TargetResource
     catch {}
 
     $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
-
-    Write-Verbose "Start Test-TargetResource: $Name"
     
-    if ($Ensure -eq "Present")
+    Write-Verbose "Calling Get: `n -Ensure $Ensure`n -Source $Source`n -Destination $Destination`n -Branch $Branch `n -Name $Name"
+
+    $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name)
+    #Get-TargetResource -Ensure "Present" -Name "website" -Source "https://github.com/leshkinski/website.git" -Destination "C:\WebSites\" -Branch "master"
+
+    if ($GetResult.Ensure -eq "Present")
     {
-        if(Test-Path -Path $RepoPath)
+        if (Test-Path $RepoPath)
         {
-            if (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source)
+            Set-Location $RepoPath
+            if (($GetResult.Destination -eq $Destination) -and ($GetResult.Source -eq $Source) -and ($GetResult.Branch -eq $Branch))
             {
-                return $true
+            
+                # Check if origin contains changes which have not been merged locally
+                $Fetch = ExecGit "fetch origin"
+                if ($Fetch.Length -ne 0)
+                {
+                    Write-Verbose "origin/$Branch has pending updates:`n$Fetch"
+                    return $false
+                }
+                
+                # Ensure that local and remote commits match after a fetch operation has been mad
+                $localCommit = ExecGit "rev-parse HEAD"
+                $originCommit = ExecGit "rev-parse origin/$Branch"
+                if (-not ($localCommit -eq $originCommit))
+                {
+                    Write-Verbose "Latest local commit does not match origin/$Branch"
+                    return $false
+                }
+
+                # Check local repo status for local, uncommited changes
+                $RepoStatus = ExecGit "status"
+                if (-not ($RepoStatus.Contains("working directory clean")))
+                {
+                    Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus"
+                    return $false
+                }
+                else
+                {
+                    # If all tests above pass, our repo has passed and is true
+                    return $true
+                }
             }
             else
             {
+                Write-Verbose "Repository settings are not consistent. `n $($GetResult | Out-String)"
                 return $false
             }
         }
         else
         {
+            Write-Verbose "$RepoPath is not found."
             return $false
         }
     }
     else
     {
-        if(Test-Path -Path $RepoPath)
+        if (Test-Path $RepoPath)
         {
-            if (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source)
-            {
-                return $true
-            }
-            else
-            {
-                return $false
-            }
+            Write-Verbose "$RepoPath still exists."
+            return $false
         }
         else
         {
             return $true
         }
     }
+
 }
 
-function IsGitRepoUpToDate
+function ExecGit
+{
+	param(
+		[Parameter(Mandatory = $true)][string]$args
+	)
+
+    # Conifugraiton and DSC resource-wide variables
+    
+    #Write-Verbose ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
+    
+    . ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
+    $gitCmd = $global:gitExe
+    #$gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
+    $location = Get-Location
+
+    try
+    {
+        #Check if location specified for git executable is valid
+	    if (CheckCommand $gitCmd)
+	    {
+	    	#Write-Verbose "Executing: git $args in $($location.path)"
+
+	        # Capture git output
+	        $psi = New-object System.Diagnostics.ProcessStartInfo 
+	        $psi.CreateNoWindow = $true 
+	        $psi.UseShellExecute = $false 
+	        $psi.RedirectStandardOutput = $true 
+	        $psi.RedirectStandardError = $true 
+	        $psi.FileName = $gitCmd
+            $psi.WorkingDirectory = $location.ToString()
+	        $psi.Arguments = $args
+	        $process = New-Object System.Diagnostics.Process 
+	        $process.StartInfo = $psi
+	        $process.Start() | Out-Null
+	        $process.WaitForExit()
+	        $output = $process.StandardOutput.ReadToEnd() + $process.StandardError.ReadToEnd()
+
+	        return $output
+	    }
+	    else
+	    {
+            Write-Verbose "Git executable not found at $gitCmd `n"
+            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git executable not found at $gitCmd")
+            Throw "Git executable not found at $gitCmd"
+	    }
+    }
+    catch
+    {
+        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git client execution failed with the following error:`n $($Error[0].Exception)")
+        return "fatal: Git executable not found"
+    }
+}
+
+function CheckCommand
+{
+	Param ($command)
+
+	$oldPreference = $ErrorActionPreference
+	$ErrorActionPreference = 'stop'
+
+	try 
+	{
+		if(Get-Command $command)
+		{
+			return $true
+		}
+	}
+	Catch 
+	{
+		return $false
+	}
+	Finally {
+		$ErrorActionPreference=$oldPreference
+	}
+} 
+
+function SetRepoPath
+{
+    param (
+        [Parameter(Position=0,Mandatory = $true)][string]$Source,
+        [Parameter(Position=1,Mandatory = $true)][string]$Destination
+    )
+
+    if(($Source.split("/.")[0]) -eq "https:")
+    {
+        $i = 5
+    }
+    else
+    {
+        $i = 2
+    }
+
+    $RepoPath = Join-Path $Destination -ChildPath ($Source.split("/."))[$i]
+    
+    return $RepoPath
+}
+
+function IsValidRepo
 {
     param(
-    	[Parameter(Position=0,Mandatory = $true)][string]$RepoPath,
-        [Parameter(Position=1,Mandatory = $true)][string]$Source
-    ) 
-    
-    if (VerifyGitRepo -RepoPath $RepoPath -Source $Source)
+		[Parameter(Position=0,Mandatory = $true)][string]$RepoPath
+	)
+
+    if (Test-Path $RepoPath)
     {
         Set-Location $RepoPath
-        $update = ExecGit "fetch origin"
-        
-        if ($update.Length -ne 0)
+        $output = (ExecGit -args "status")
+        if ($output -notcontains "Not a git repository")
         {
-            Write-Verbose "Origin has been updated:`n$update"
-        }
-        
-        $local = ExecGit "rev-parse HEAD"
-        $remote = ExecGit "rev-parse origin/master"
-        
-        Write-Verbose "Comparing comits:`n - Local commit:  $local - Remote commit: $remote"
-        
-        if ($local -eq $remote)
-        {
-            Write-Verbose "Latest local commit matches remote. Checking for uncommited local changes..."
-            
-            $statusOutput = ExecGit "status"
-            if (-not ($statusOutput.Contains("nothing to commit")))
-            {
-                Write-Verbose "Local repo contains uncommited changes! `n$statusOutput"
-                return $false
-            }
-            else
-            {
-                return $true
-            }
+            return $true
         }
         else
         {
-            Write-Verbose "Local repository does not match remote!"
             return $false
         }
     }
@@ -357,101 +518,5 @@ function VerifyGitRepo
 	return $true
 }
 
-function ExecGit
-{
-	param(
-		[Parameter(Mandatory = $true)][string]$args
-	)
-
-    # Conifugraiton and DSC resource-wide variables
-    
-    #Write-Verbose ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
-    
-    #. ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
-    #$gitCmd = $global:gitExe
-    $gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
-    $location = Get-Location
-
-    try
-    {
-        #Check if location specified for git executable is valid
-	    if (CheckCommand $gitCmd)
-	    {
-	    	Write-Verbose "Executing: git $args"
-
-	        # Capture git output
-	        $psi = New-object System.Diagnostics.ProcessStartInfo 
-	        $psi.CreateNoWindow = $true 
-	        $psi.UseShellExecute = $false 
-	        $psi.RedirectStandardOutput = $true 
-	        $psi.RedirectStandardError = $true 
-	        $psi.FileName = $gitCmd
-            $psi.WorkingDirectory = $location.ToString()
-	        $psi.Arguments = $args
-	        $process = New-Object System.Diagnostics.Process 
-	        $process.StartInfo = $psi
-	        $process.Start() | Out-Null
-	        $process.WaitForExit()
-	        $output = $process.StandardOutput.ReadToEnd() + $process.StandardError.ReadToEnd()
-
-	        return $output
-	    }
-	    else
-	    {
-            Write-Verbose "Git executable not found at $((get-command $gitCmd).path) `n"
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git executable not found at $((get-command $gitCmd).path)")
-            Throw "Git executable not found at $((get-command $gitCmd).path)"
-	    }
-    }
-    catch
-    {
-        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git client execution failed with the following error:`n $($Error[0].Exception)")
-        return "fatal: Git executable not found"
-    }
-}
-
-function CheckCommand
-{
-	Param ($command)
-
-	$oldPreference = $ErrorActionPreference
-	$ErrorActionPreference = 'stop'
-
-	try 
-	{
-		if(Get-Command $command)
-		{
-			return $true
-		}
-	}
-	Catch 
-	{
-		return $false
-	}
-	Finally {
-		$ErrorActionPreference=$oldPreference
-	}
-} 
-
-function SetRepoPath
-{
-    param (
-        [Parameter(Position=0,Mandatory = $true)][string]$Source,
-        [Parameter(Position=0,Mandatory = $true)][string]$Destination
-    )
-
-    if(($Source.split("/.")[0]) -eq "https:")
-    {
-        $i = 5
-    }
-    else
-    {
-        $i = 2
-    }
-
-    $RepoPath = Join-Path $Destination -ChildPath ($Source.split("/."))[$i]
-    
-    return $RepoPath
-}
 
 Export-ModuleMember -Function *-TargetResource
