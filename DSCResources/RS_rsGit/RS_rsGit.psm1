@@ -292,7 +292,7 @@ function Test-TargetResource
     $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name)
     #Get-TargetResource -Ensure "Present" -Name "website" -Source "https://github.com/leshkinski/website.git" -Destination "C:\WebSites\" -Branch "master"
 
-    if ($GetResult.Ensure -eq "Present")
+    if ($Ensure -eq "Present")
     {
         if (Test-Path $RepoPath)
         {
