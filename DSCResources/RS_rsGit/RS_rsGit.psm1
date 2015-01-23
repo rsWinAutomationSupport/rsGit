@@ -103,7 +103,7 @@ function Get-TargetResource
             # Split output by line; find one that is listed as (fetch); split by space and list just origin URI
             $SourceResult = (((ExecGit -args "remote -v").Split("`n") | Where-Object { $_.contains("(fetch)") }) -split "\s+")[1]
 
-            if ($DestinationZip)
+            if (-not ([String]::IsNullOrEmpty($DestinationZip)))
             {
                 if (Test-Path $DestinationZip)
                 {
@@ -185,38 +185,90 @@ function Set-TargetResource
         New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
     }
     catch {}
+
+    $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
     
     if ($Ensure -eq "Present")
     {
+        <#
         if ((Get-Service "Browser").status -eq "Stopped" ) 
         {
-            
             Get-Job | ? State -match "Completed" | Remove-Job
             $startmode = (Get-WmiObject -Query "Select StartMode From Win32_Service Where Name='browser'").startmode
-            if ( $startmode -eq 'disabled' ){ Set-Service -Name Browser -StartupType Manual }
-            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Browser Service") }
+
+            if ( $startmode -eq 'disabled' )
+            {
+                Set-Service -Name Browser -StartupType Manual 
+            }
+
+            Write-Verbose "Starting Browser Service"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Browser Service")
+            }
             Start-Service Browser
+ 
             if ( (Get-Job "Stop_Browser" -ErrorAction SilentlyContinue).count -eq 0 )
             {
-                if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Creating PSJob to Stop Browser Service") }
-                Start-Job -Name "Stop_Browser" -ScriptBlock { Start-Sleep -Seconds 60; Stop-Service Browser; }
+                Write-Verbose "Creating PSJob to Stop Browser Service"
+                if($Logging -eq $true) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Creating PSJob to Stop Browser Service")
+                }
+                Start-Job -Name "Stop_Browser" -ScriptBlock 
+                {
+                    Start-Sleep -Seconds 60
+                    Stop-Service Browser
+                }
             }
         }
-        if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
-        if((test-path -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PathType Container) -eq $false) {
-            if((Test-Path -Path $Destination) -eq $false) { 
-                New-Item $Destination -ItemType Directory -Force 
-            }
-            chdir $Destination
-            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git clone --branch $branch $Source") }
-            Start -Wait -NoNewWindow "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
-        }
+        #>
         
+        #if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
+
+        if(-not (Test-Path -Path $RepoPath -PathType Container)) 
+        {
+            if(-not (Test-Path -Path $Destination -PathType Container)) 
+            { 
+                New-Item $Destination -ItemType Directory -Force
+            }
+            Set-Location $Destination
+
+            Write-Verbose "$Source : git clone --branch $branch $Source"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git clone --branch $branch $Source") 
+            }
+
+            ExecGit "clone --branch $Branch $Source"
+        }
         else 
         {
-            chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
-            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") }
-            start -Wait 'C:\Program Files (x86)\Git\cmd\git.exe' -ArgumentList "checkout $Branch; reset --hard; clean -f -d; fetch origin $Branch; merge remotes/origin/$Branch"
+            Set-Location $RepoPath
+
+            Write-Verbose "$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") 
+            }
+            #start -Wait 'C:\Program Files (x86)\Git\cmd\git.exe' -ArgumentList "checkout $Branch; reset --hard; clean -f -d; fetch origin $Branch; merge remotes/origin/$Branch"
+
+            #
+            # Add configuration verification steps here
+            # use Get-TrargetResource to retrieve current state, then make changes based on its output
+
+            # Switch to the desired branch
+            ExecGit "checkout $Branch"
+
+            # Reset local repo to match remote for tracked files
+            ExecGit "reset --hard origin/$branch"
+
+            # Reset local repo to match last fetched commit - this is an alternative to resetting to remote branch
+            #ExecGit "reset --hard HEAD"
+
+            # Remove any untracked files (-f [force], directories (-d) and any ignored files (-x)
+            ExecHit "clean -xdf"
+            ExecGit "pull origin $Branch"
         }
         if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
         {
@@ -234,21 +286,13 @@ function Set-TargetResource
     }
     if ($Ensure -eq "Absent")
     {
-        if(($Source.split("/.")[0]) -eq "https:") 
-        {
-            $i = 5
-        }
-        else
-        {
-            $i = 2
-        }
-
+        Write-Verbose "Removing $RepoPath"
         if($Logging -eq $true) 
         {
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Removing git")
+            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Removing $RepoPath")
         }
         
-        remove-item -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -Recurse -Force
+        Remove-Item -Path $RepoPath -Recurse -Force
     }
 }
 
@@ -317,7 +361,7 @@ function Test-TargetResource
                     return $false
                 }
 
-                # Check local repo status for local, uncommited changes
+                # Final check for local repo status for local uncommited changes
                 $RepoStatus = ExecGit "status"
                 if (-not ($RepoStatus.Contains("working directory clean")))
                 {
