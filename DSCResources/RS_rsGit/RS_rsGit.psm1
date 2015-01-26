@@ -190,6 +190,7 @@ function Set-TargetResource
     
     if ($Ensure -eq "Present")
     {
+        # Disabling Browser service - need to check if this is needed
         <#
         if ((Get-Service "Browser").status -eq "Stopped" ) 
         {
@@ -224,52 +225,100 @@ function Set-TargetResource
         }
         #>
         
-        #if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
+        $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name)
 
-        if(-not (Test-Path -Path $RepoPath -PathType Container)) 
+        if (($GetResult.Ensure -ne "Present") -or ($GetResult.Source -ne $Source) -or (-not $GetResult.Destination))
         {
-            if(-not (Test-Path -Path $Destination -PathType Container)) 
-            { 
+            
+            if (-not (Test-Path $Destination))
+            {
                 New-Item $Destination -ItemType Directory -Force
             }
             Set-Location $Destination
-
-            Write-Verbose "$Source : git clone --branch $branch $Source"
-            if($Logging -eq $true) 
+            
+            if (Test-Path $RepoPath)
+            {
+                Remove-Item -Path $RepoPath -Recurse -Force
+            }
+            
+            if($Logging) 
             {
                 Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git clone --branch $branch $Source") 
             }
-
-            ExecGit "clone --branch $Branch $Source"
+            $GitOutput = (ExecGit "clone --branch $branch $Source")
+            Write-Verbose " `n$GitOutput"
         }
-        else 
+        else
         {
             Set-Location $RepoPath
 
-            Write-Verbose "$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull"
-            if($Logging -eq $true) 
+            # Verify that we are using the correct branch and force-set the correct one - will destroy any uncommited changes
+            if ($GetResult.Branch -ne $Branch)
             {
-                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") 
+                $GitCheckout = (ExecGit "checkout --force $Branch")
+                    if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout --force $Branch `n$GitCheckout") 
+                }
+                Write-Verbose " `n git checkout --force $Branch `n$GitCheckout"
             }
-            #start -Wait 'C:\Program Files (x86)\Git\cmd\git.exe' -ArgumentList "checkout $Branch; reset --hard; clean -f -d; fetch origin $Branch; merge remotes/origin/$Branch"
-
-            #
-            # Add configuration verification steps here
-            # use Get-TrargetResource to retrieve current state, then make changes based on its output
-
-            # Switch to the desired branch
-            ExecGit "checkout $Branch"
-
-            # Reset local repo to match remote for tracked files
-            ExecGit "reset --hard origin/$branch"
-
-            # Reset local repo to match last fetched commit - this is an alternative to resetting to remote branch
-            #ExecGit "reset --hard HEAD"
-
-            # Remove any untracked files (-f [force], directories (-d) and any ignored files (-x)
-            ExecHit "clean -xdf"
-            ExecGit "pull origin $Branch"
+            
+            # Check if origin contains changes which have not been merged locally
+            $Fetch = ExecGit "fetch origin"
+            if ($Fetch.Length -ne 0)
+            {
+                if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("origin/$Branch has pending updates:`n$Fetch") 
+                }
+                Write-Verbose "origin/$Branch has pending updates:`n$Fetch"
+                $RequireUpdate = $true
+            }
+            else
+            {
+                $localCommit = ExecGit "rev-parse HEAD"
+                $originCommit = ExecGit "rev-parse origin/$Branch"
+                if ($localCommit -ne $originCommit)
+                {
+                    if($Logging) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message (" `norigin/$Branch and local are not in sync:`nLocal Commit: $localCommit`nOrigin Commit: $originCommit") 
+                    }
+                    Write-Verbose " `norigin/$Branch and local are not in sync:`nLocal Commit: $localCommit`nOrigin Commit: $originCommit"
+                    $RequireUpdate = $true
+                }
+                $RequireUpdate = $false
+            }
+            if ($RequireUpdate)
+            {
+                # Reset local repo to match remote for tracked files
+                $GitReset = ExecGit "reset --hard origin/$branch"
+                if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("git reset --hard origin/$Branch :`n$GitReset") 
+                }
+                Write-Verbose "git reset --hard origin/$Branch :`n$GitReset"
+            }
+         
+            # Check local repo status for local uncommited changes and delete them
+            $RepoStatus = ExecGit "status"
+            if (-not ($RepoStatus.Contains("working directory clean")))
+            {
+                if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Local repo contains uncommited changes! `n$RepoStatus `n Running git clean -xdf") 
+                }
+                
+                Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus"
+                
+                # Reset local repo to match remote for tracked files
+                ExecGit "reset --hard origin/$branch"
+                # Remove any untracked files (-f [force], directories (-d) and any ignored files (-x)
+                ExecGit "clean -xdf"
+            }
+            
         }
+
         if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
         {
             if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip") }
@@ -370,7 +419,7 @@ function Test-TargetResource
                 }
                 else
                 {
-                    # If all tests above pass, our repo has passed and is true
+                    # If all tests above pass, our repo test is true
                     return $true
                 }
             }
@@ -408,12 +457,9 @@ function ExecGit
 	)
 
     # Conifugraiton and DSC resource-wide variables
-    
-    #Write-Verbose ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
-    
-    . ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
-    $gitCmd = $global:gitExe
-    #$gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
+    #. ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
+    #$gitCmd = $global:gitExe
+    $gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
     $location = Get-Location
 
     try
