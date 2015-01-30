@@ -275,10 +275,10 @@ function Set-TargetResource
         {
             if($Logging -eq $true) 
             {
-                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip") 
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip: $DestinationZip ") 
             }
 
-            $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
+            $resourceZipPath = New-ResourceZip -modulePath $RepoPath -outputDir $DestinationZip 
             
             if ( $resourceZipPath -ne $null )
             {
