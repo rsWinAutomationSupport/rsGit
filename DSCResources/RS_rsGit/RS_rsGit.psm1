@@ -244,17 +244,17 @@ function Set-TargetResource
             if (($localCommit -ne $originCommit) -or (-not $RepoStatus.Contains("branch is up-to-date")))
             {
                 # merge remote changes if local is behind origin seems to not work very well during provisioning - need to investigate further
-                # $GitOutput = ExecGit "merge origin/$Branch"
-                $GitOutput = ExecGit "reset --hard origin/$branch"
+                $GitOutput = ExecGit "merge remotes/origin/$Branch"
+                #$GitOutput = ExecGit "reset --hard origin/$branch"
                 $RepoStatus = ExecGit "status"
 
                 if($Logging) 
                 {
-                    #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit merge origin/$Branch :`n $GitOutput") 
-                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput") 
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit merge remotes/origin/$Branch :`n $GitOutput") 
+                    #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput") 
                 }
-                #Write-Verbose "Local repo is behind origin/$Branch :`ngit merge origin/$branch :`n $GitOutput"
-                Write-Verbose "Local repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput"
+                Write-Verbose "Local repo is behind origin/$Branch :`ngit merge remotes/origin/$branch :`n $GitOutput"
+                #Write-Verbose "Local repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput"
             }
 
             if (-not ($RepoStatus.Contains("working directory clean")))
