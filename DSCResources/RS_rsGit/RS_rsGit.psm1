@@ -1,4 +1,460 @@
-﻿Function New-ResourceZip {
+﻿function Get-TargetResource
+{
+    [OutputType([Hashtable])]
+    param (
+       [ValidateSet('Present','Absent')]
+       [string]
+       $Ensure = 'Present',
+       [parameter(Mandatory = $true)]
+       [string]
+       $Source,
+       [parameter(Mandatory = $true)]
+       [string]
+       $Destination,
+       [parameter(Mandatory = $true)]
+       [string]
+       $Branch,
+       [parameter(Mandatory = $true)]
+       [string]
+       $Name,
+       [string]
+       $DestinationZip,
+       [bool]
+       $Logging
+    )
+    
+    try
+    {
+        $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+        New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+    }
+    catch {}
+    
+    $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
+
+    Write-Verbose "Checking if `"$RepoPath`" exists"
+
+    if (Test-Path $RepoPath)
+    {
+        if (IsValidRepo -RepoPath $RepoPath)
+        {
+            Set-Location $RepoPath
+            $ensureResult = "Present"
+            
+            # Retreive current branch and clean-up git output
+            $currentBranch = (ExecGit "rev-parse --abbrev-ref HEAD").split()[0]
+            Write-Verbose "Repo branch set to `"$currentBranch`""
+
+            # Retrieve current repo origin fetch settings
+            # Split output by line; find one that is listed as (fetch); split by space and list just origin URI
+            $SourceResult = (((ExecGit -args "remote -v").Split("`n") | Where-Object { $_.contains("(fetch)") }) -split "\s+")[1]
+
+            if (-not ([String]::IsNullOrEmpty($DestinationZip)))
+            {
+                if (Test-Path $DestinationZip)
+                {
+                    $currentDestZip = $DestinationZip
+                }
+                else
+                {
+                    $currentDestZip = $null
+                }
+            }
+            else
+            {
+                $currentDestZip = $null
+            }
+        }
+        else
+        {
+            $ensureResult = "Absent"
+            $currentBranch = $null
+            $Destination = $null
+            $SourceResult = $null
+            if ($DestinationZip)
+            {
+                $currentDestZip = $null
+            }
+        }
+    }
+    else
+    {
+        $ensureResult = "Absent"
+        $currentBranch = $null
+        $Destination = $null
+        $SourceResult = $null
+        if ($DestinationZip)
+        {
+            $DestinationZip = $null
+        }
+    }
+    
+    @{
+        Name = $Name
+        Destination = $Destination
+        DestinationZip = $currentDestZip
+        Source = $SourceResult
+        Ensure = $ensureResult
+        Branch = $currentBranch
+    }  
+}
+
+function Set-TargetResource
+{
+    param (
+        [ValidateSet('Present','Absent')]
+        [string]
+        $Ensure = 'Present',
+        [parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Source,
+        [parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Destination,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Branch,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Name,
+        [string]
+        $DestinationZip,
+        [bool]
+        $Logging
+    )
+    try
+    {
+        $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+        New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+    }
+    catch {}
+
+    $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
+    
+    if ($Ensure -eq "Present")
+    {
+        <# Disabling Browser service - need to check if this is needed
+        if ((Get-Service "Browser").status -eq "Stopped" ) 
+        {
+            Get-Job | ? State -match "Completed" | Remove-Job
+            $startmode = (Get-WmiObject -Query "Select StartMode From Win32_Service Where Name='browser'").startmode
+
+            if ( $startmode -eq 'disabled' )
+            {
+                Set-Service -Name Browser -StartupType Manual 
+            }
+
+            Write-Verbose "Starting Browser Service"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Browser Service")
+            }
+            Start-Service Browser
+ 
+            if ( (Get-Job "Stop_Browser" -ErrorAction SilentlyContinue).count -eq 0 )
+            {
+                Write-Verbose "Creating PSJob to Stop Browser Service"
+                if($Logging -eq $true) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Creating PSJob to Stop Browser Service")
+                }
+                Start-Job -Name "Stop_Browser" -ScriptBlock 
+                {
+                    Start-Sleep -Seconds 60
+                    Stop-Service Browser
+                }
+            }
+        }
+        #>
+        
+        $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name)
+        
+        # Retrieve any changes, which have not been merged locally
+        $Fetch = ExecGit "fetch origin"
+
+        # Check repository is already configured as per desired configuration
+        if (($GetResult.Ensure -ne "Present") -or 
+            ($GetResult.Source -ne $Source) -or 
+            ($GetResult.Destination -ne $Destination))
+        {
+            if (-not (Test-Path $Destination))
+            {
+                New-Item $Destination -ItemType Directory -Force
+            }
+            Set-Location $Destination
+            
+            if (Test-Path $RepoPath)
+            {
+                Remove-Item -Path $RepoPath -Recurse -Force
+            }
+
+            $GitOutput = (ExecGit "clone --branch $branch $Source")
+            if($Logging) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`ngit clone --branch $branch $Source `n$GitOutput") 
+            }
+            Write-Verbose "git clone --branch $branch $Source `n$GitOutput"
+        }
+        else
+        {
+            Set-Location $RepoPath
+
+            # Verify that we are using the correct branch and force-set the correct one - this will destroy any uncommited changes!
+            if ($GetResult.Branch -ne $Branch)
+            {
+                Write-Verbose "Local branch is not valid - setting to `"$Branch`""
+                $GitOutput = (ExecGit "checkout --force $Branch")
+                if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal branch is not valid - setting to `"$Branch`" `ngit checkout --force $Branch `n$GitOutput") 
+                }
+                Write-Verbose "`ngit checkout --force $Branch `n$GitOutput"
+            }
+
+            $RepoStatus = ExecGit "status"
+
+            # Check if local repo has changes that are not in origin and reset the repo to origin.
+            # Each test-case below will currently result in local repo being hard reset to match origin.
+            # Effectively any local changes to repo will be lost:
+            #
+            # "Your branch is ahead of" - local repo contains commits, which have not been merged with remote yet 
+            # "no changes added to commit" - a tracked file has been modified locally, but has not been commited yet
+            # "have diverged" - local and remote have at least one unmerged commit each, these must be merged before we can continue
+            # "Changes to be committed" - local repo has staged files, which have not been commited yet
+            #
+            if (($RepoStatus.Contains("Your branch is ahead of")) -or
+                ($RepoStatus.Contains("no changes added to commit")) -or 
+                ($RepoStatus.Contains("have diverged")) -or 
+                ($RepoStatus.Contains("Changes to be committed")))
+            {
+                # Reset local repo to match origin for all tracked files
+                $GitOutput = ExecGit "reset --hard origin/$branch"
+                $RepoStatus = ExecGit "status"
+
+                if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput") 
+                }
+                
+                Write-Verbose "Local changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput"
+            }
+            
+            if (($localCommit -ne $originCommit) -or (-not $RepoStatus.Contains("branch is up-to-date")))
+            {
+                # merge remote changes if local is behind origin
+                $GitOutput = ExecGit "merge origin/$Branch"
+                $RepoStatus = ExecGit "status"
+
+                if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`nmerge origin/$Branch :`n $GitOutput") 
+                }
+                Write-Verbose "Local repo is behind origin/$Branch :`ngit merge origin/$branch :`n $GitOutput"
+            }
+
+            if (-not ($RepoStatus.Contains("working directory clean")))
+            {
+                # Remove any untracked files (-f [force], directories (-d) and any ignored files (-x)
+                $GitOutput = ExecGit "clean -xdf"
+                $RepoStatus = ExecGit "status"
+
+                if($Logging) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal repo contains uncommited changes! `n$RepoStatus `n git clean -xdf `n $GitOutput") 
+                }
+                Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus `n git clean -xdf `n $GitOutput"
+            }
+        }
+
+        if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
+        {
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip") 
+            }
+
+            $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
+            
+            if ( $resourceZipPath -ne $null )
+            {
+                if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nStarting Checksum") }
+                Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
+                New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
+                $hash = (Get-FileHash -Path $resourceZipPath).Hash
+                [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
+            }
+        }
+    }
+
+    if ($Ensure -eq "Absent")
+    {
+        Write-Verbose "Removing $RepoPath"
+        if($Logging -eq $true) 
+        {
+            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nRemoving $RepoPath")
+        }
+        Remove-Item -Path $RepoPath -Recurse -Force
+
+        Write-Verbose "Checking if $Destination is empty..."
+        if ((Get-ChildItem $Destination | Measure-Object).count -eq 0)
+        {
+            Remove-Item -Path $Destination -Recurse -Force
+            Write-Verbose "$Destination removed"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nRemoving $Destination")
+            }
+        }
+        else
+        {
+            Write-Verbose "$Destination not empty - leaving alone..."
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`n$Destination was not empty, so was not removed")
+            }
+        };
+
+    }
+}
+
+function Test-TargetResource
+{
+    [OutputType([boolean])]
+    param (
+        [ValidateSet('Present','Absent')]
+        [string]
+        $Ensure = 'Present',
+        [parameter(Mandatory = $true)]
+        [string]
+        $Source,
+        [parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Destination,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Branch,
+        [parameter(Mandatory = $true)]
+        [string]
+        $Name,
+        [string]
+        $DestinationZip,
+        [bool]
+        $Logging
+    )
+
+    try
+    {
+        $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
+        New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
+    }
+    catch {}
+
+    $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
+
+    $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name)
+
+    if ($Ensure -eq "Present")
+    {
+        if (Test-Path $RepoPath)
+        {
+            Set-Location $RepoPath
+            if (($GetResult.Destination -eq $Destination) -and ($GetResult.Source -eq $Source) -and ($GetResult.Branch -eq $Branch))
+            {
+                # Check if origin contains changes which have not been merged locally
+                $Fetch = ExecGit "fetch origin"
+                if ($Fetch.Length -ne 0)
+                {
+                    Write-Verbose "origin/$Branch has pending updates:`n$Fetch"
+                    if($Logging -eq $true) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`norigin/$Branch has pending updates:`n$Fetch")
+                    }
+                    return $false
+                }
+                
+                # Ensure that local and remote commits match after a fetch operation has been mad
+                $localCommit = ExecGit "rev-parse HEAD"
+                $originCommit = ExecGit "rev-parse origin/$Branch"
+                if (-not ($localCommit -eq $originCommit))
+                {
+                    Write-Verbose "Latest local commit does not match origin/$Branch"
+                    if($Logging -eq $true) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLatest local commit does not match origin/$Branch")
+                    }
+                    return $false
+                }
+
+                # Final check for local repo status for local uncommited changes
+                $RepoStatus = ExecGit "status"
+                if (-not ($RepoStatus.Contains("working directory clean")))
+                {
+                    Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus"
+                    if($Logging -eq $true) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo contains uncommited changes! `n$RepoStatus")
+                    }
+                    return $false
+                }
+                else
+                {
+                    Write-Verbose "All tests passed, repo test result is true: `n$RepoStatus"
+                    if($Logging -eq $true) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nAll tests passed, repo test result is true: `n$RepoStatus")
+                    }
+                    return $true
+                }
+            }
+            else
+            {
+                Write-Verbose "Repository settings are not consistent. `n $($GetResult | Out-String)"
+                if($Logging -eq $true) 
+                {
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nRepository settings are not consistent. `n $($GetResult | Out-String)")
+                }
+                return $false
+            }
+        }
+        else
+        {
+            Write-Verbose "$RepoPath is not found!"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`n$RepoPath is not found")
+            }
+            return $false
+        }
+    }
+    else
+    {
+        if (Test-Path $RepoPath)
+        {
+            Write-Verbose "$RepoPath still exists"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`n$RepoPath still exists")
+            }
+            return $false
+        }
+        else
+        {
+            Write-Verbose "$RepoPath does not exist"
+            if($Logging -eq $true) 
+            {
+                Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`n$RepoPath does not exist")
+            }
+            return $true
+        }
+    }
+
+}
+
+Function New-ResourceZip 
+{
    param
    (
       $modulePath,
@@ -54,301 +510,6 @@
    return $outputPath
 }
 
-function Get-TargetResource
-{
-   [OutputType([Hashtable])]
-   param (
-      [ValidateSet('Present','Absent')]
-      [string]
-      $Ensure = 'Present',
-      [parameter(Mandatory = $true)]
-      [string]
-      $Source,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Destination,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Branch,
-      [parameter(Mandatory = $true)]
-      [string]
-      $Name,
-      [string]
-      $DestinationZip,
-      [bool]
-      $Logging
-   )
-
-   try
-   {
-      $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-      New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
-   }
-   catch {}
-
-   @{
-        Name = $Name
-        Destination = $Destination
-        DestinationZip = $DestinationZip
-        Source = $Source
-        Ensure = $Ensure
-        Branch = $Branch
-    }  
-}
-
-function Set-TargetResource
-{
-    param (
-        [ValidateSet('Present','Absent')]
-        [string]
-        $Ensure = 'Present',
-        [parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
-        [string]
-        $Source,
-        [parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
-        [string]
-        $Destination,
-        [parameter(Mandatory = $true)]
-        [string]
-        $Branch,
-        [parameter(Mandatory = $true)]
-        [string]
-        $Name,
-        [string]
-        $DestinationZip,
-        [bool]
-        $Logging
-    )
-    try
-    {
-        $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-        New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
-    }
-    catch {}
-    
-    if ($Ensure -eq "Present")
-    {
-        if ((Get-Service "Browser").status -eq "Stopped" ) 
-        {
-            
-            Get-Job | ? State -match "Completed" | Remove-Job
-            $startmode = (Get-WmiObject -Query "Select StartMode From Win32_Service Where Name='browser'").startmode
-            if ( $startmode -eq 'disabled' ){ Set-Service -Name Browser -StartupType Manual }
-            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Browser Service") }
-            Start-Service Browser
-            if ( (Get-Job "Stop_Browser" -ErrorAction SilentlyContinue).count -eq 0 )
-            {
-                if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Creating PSJob to Stop Browser Service") }
-                Start-Job -Name "Stop_Browser" -ScriptBlock { Start-Sleep -Seconds 60; Stop-Service Browser; }
-            }
-        }
-        if(($Source.split("/.")[0]) -eq "https:") { $i = 5 } else { $i = 2 }
-        if((test-path -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PathType Container) -eq $false) {
-            if((Test-Path -Path $Destination) -eq $false) { 
-                New-Item $Destination -ItemType Directory -Force 
-            }
-            chdir $Destination
-            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git clone --branch $branch $Source") }
-            Start -Wait -NoNewWindow "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
-        }
-        
-        else 
-        {
-            chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
-            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") }
-            start -Wait 'C:\Program Files (x86)\Git\cmd\git.exe' -ArgumentList "checkout $Branch; reset --hard; clean -f -d; fetch origin $Branch; merge remotes/origin/$Branch"
-        }
-        if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
-        {
-            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip") }
-            $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
-            if ( $resourceZipPath -ne $null )
-            {
-                if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Checksum") }
-                Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
-                New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
-                $hash = (Get-FileHash -Path $resourceZipPath).Hash
-                [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
-            }
-        }
-    }
-    if ($Ensure -eq "Absent")
-    {
-        if(($Source.split("/.")[0]) -eq "https:") 
-        {
-            $i = 5
-        }
-        else
-        {
-            $i = 2
-        }
-
-        if($Logging -eq $true) 
-        {
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Removing git")
-        }
-        
-        remove-item -Path (Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -Recurse -Force
-    }
-}
-
-function Test-TargetResource
-{
-    [OutputType([boolean])]
-    param (
-        [ValidateSet('Present','Absent')]
-        [string]
-        $Ensure = 'Present',
-        [parameter(Mandatory = $true)]
-        [string]
-        $Source,
-        [parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
-        [string]
-        $Destination,
-        [parameter(Mandatory = $true)]
-        [string]
-        $Branch,
-        [parameter(Mandatory = $true)]
-        [string]
-        $Name,
-        [string]
-        $DestinationZip,
-        [bool]
-        $Logging
-    )
-
-    try
-    {
-        $myLogSource = $PSCmdlet.MyInvocation.MyCommand.ModuleName
-        New-Eventlog -LogName "DevOps" -Source $myLogSource -ErrorAction SilentlyContinue
-    }
-    catch {}
-
-    $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
-
-    Write-Verbose "Start Test-TargetResource: $Name"
-    
-    if ($Ensure -eq "Present")
-    {
-        if(Test-Path -Path $RepoPath)
-        {
-            if (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source)
-            {
-                return $true
-            }
-        }
-        else
-        {
-            return $false
-        }
-    }
-    else
-    {
-        if(Test-Path -Path $RepoPath)
-        {
-            if (IsGitRepoUpToDate -RepoPath $RepoPath -Source $Source)
-            {
-                return $false
-            }
-        }
-        else
-        {
-            return $true
-        }
-    }
-}
-
-function IsGitRepoUpToDate
-{
-    param(
-    	[Parameter(Position=0,Mandatory = $true)][string]$RepoPath,
-        [Parameter(Position=1,Mandatory = $true)][string]$Source
-    ) 
-    
-    if (VerifyGitRepo -RepoPath $RepoPath -Source $Source)
-    {
-        Set-Location $RepoPath
-        $update = ExecGit "fetch origin"
-        
-        if ($update.Length -ne 0)
-        {
-            Write-Verbose "Origin has been updated:`n$update"
-        }
-        
-        $local = ExecGit "rev-parse HEAD"
-        $remote = ExecGit "rev-parse origin/master"
-        
-        Write-Verbose "Comparing comits:`n - Local commit:  $local - Remote commit: $remote"
-        
-        if ($local -eq $remote)
-        {
-            Write-Verbose "Latest local commit matches remote. Checking for uncommited local changes..."
-            
-            $statusOutput = ExecGit "status"
-            if (-not ($statusOutput.Contains("nothing to commit")))
-            {
-                Write-Verbose "Local repo contains uncommited changes! `n$statusOutput"
-                return $false
-            }
-            else
-            {
-                return $true
-            }
-        }
-        else
-        {
-            Write-Verbose "Local repository does not match remote!"
-            return $false
-        }
-    }
-    else
-    {
-        return $false
-    }
-}
-
-function VerifyGitRepo
-{
-    # Confirm that local repository settings are as per current DSC configuration
-    #
-    param(
-		[Parameter(Position=0,Mandatory = $true)][string]$RepoPath,
-        [Parameter(Position=1,Mandatory = $true)][string]$Source
-	) 
-
-    Write-Verbose "Checking local repository path..."
-	if(Test-Path "$RepoPath")
-    {
-        Set-Location $RepoPath
-	    $output = ExecGit "status"
-        $outputRemote = ExecGit "remote -v"       
-    }
-    else
-    {
-        Write-Verbose "Invalid repository path specified: $RepoPath"
-        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Invalid repository path specified: $RepoPath")
-        return $false
-    }
-
-    if(-not ($outputRemote.Contains("origin	$Source (fetch)")))
-    {
-        Write-Verbose "Source repository settings do not match:`nLocal setting: $outputRemote `nDSC Setting: $Source"
-        return $false
-    }
-	
-    if ($output.Contains("fatal"))
-	{
-		Write-Verbose " `n$output"
-        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("$RepoPath `n $output")
-		return $false
-	}
-
-	return $true
-}
-
 function ExecGit
 {
 	param(
@@ -356,17 +517,17 @@ function ExecGit
 	)
 
     # Conifugraiton and DSC resource-wide variables
-    . ($PSScriptRoot + "\RS_rsGit_settings.ps1")
+    . ($MyInvocation.PSScriptRoot + "\RS_rsGit_settings.ps1")
     $gitCmd = $global:gitExe
+    #$gitCmd = "C:\Program Files (x86)\Git\cmd\git.exe"
     $location = Get-Location
 
     try
     {
         #Check if location specified for git executable is valid
-	    if (CheckCommand $gitCmd)
+	    if ((Get-Command $gitCmd).Name -eq "git.exe")
 	    {
-	    	Write-Verbose "Executing: git $args"
-
+	    	# Write-Verbose "Executing: git $args in $($location.path)"
 	        # Capture git output
 	        $psi = New-object System.Diagnostics.ProcessStartInfo 
 	        $psi.CreateNoWindow = $true 
@@ -386,46 +547,22 @@ function ExecGit
 	    }
 	    else
 	    {
-            Write-Verbose "Git executable not found at $((get-command $gitCmd).path) `n"
-            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git executable not found at $((get-command $gitCmd).path)")
-            Throw "Git executable not found at $((get-command $gitCmd).path)"
+            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git executable not found at $gitCmd")
+            Throw "Git executable not found at $gitCmd"
 	    }
     }
     catch
     {
         Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Error -EventId 1000 -Message ("Git client execution failed with the following error:`n $($Error[0].Exception)")
-        return "fatal: Git executable not found"
+        return $($Error[0].Exception)
     }
 }
-
-function CheckCommand
-{
-	Param ($command)
-
-	$oldPreference = $ErrorActionPreference
-	$ErrorActionPreference = 'stop'
-
-	try 
-	{
-		if(Get-Command $command)
-		{
-			return $true
-		}
-	}
-	Catch 
-	{
-		return $false
-	}
-	Finally {
-		$ErrorActionPreference=$oldPreference
-	}
-} 
 
 function SetRepoPath
 {
     param (
         [Parameter(Position=0,Mandatory = $true)][string]$Source,
-        [Parameter(Position=0,Mandatory = $true)][string]$Destination
+        [Parameter(Position=1,Mandatory = $true)][string]$Destination
     )
 
     if(($Source.split("/.")[0]) -eq "https:")
@@ -440,6 +577,31 @@ function SetRepoPath
     $RepoPath = Join-Path $Destination -ChildPath ($Source.split("/."))[$i]
     
     return $RepoPath
+}
+
+function IsValidRepo
+{
+    param(
+		[Parameter(Position=0,Mandatory = $true)][string]$RepoPath
+	)
+
+    if (Test-Path $RepoPath)
+    {
+        Set-Location $RepoPath
+        $output = (ExecGit -args "status")
+        if ($output -notcontains "Not a git repository")
+        {
+            return $true
+        }
+        else
+        {
+            return $false
+        }
+    }
+    else
+    {
+        return $false
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource
