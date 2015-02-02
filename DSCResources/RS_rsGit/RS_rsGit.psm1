@@ -5,7 +5,7 @@
        [ValidateSet('Present','Absent')]
        [string]
        $Ensure = 'Present',
-       [ValidateSet('Clone','AllowUnstaged','Push')]
+       [ValidateSet('Clone','CopyOnly')]
        [string]
        $Mode = 'Clone',
        [parameter(Mandatory = $true)]
@@ -109,7 +109,7 @@ function Set-TargetResource
         [ValidateSet('Present','Absent')]
         [string]
         $Ensure = 'Present',
-        [ValidateSet('Clone','AllowUnstaged','Push')]
+        [ValidateSet('Clone','CopyOnly')]
         [string]
         $Mode = 'Clone',
         [parameter(Mandatory = $true)]
@@ -222,36 +222,20 @@ function Set-TargetResource
 
             $RepoStatus = ExecGit "status"
 
-
-            
-            if (($localCommit -ne $originCommit) -or (-not $RepoStatus.Contains("branch is up-to-date")))
+            if ($Mode -eq "Clone")
             {
-                # merge remote changes if local is behind origin seems to not work very well during provisioning - need to investigate further
-                $GitOutput = ExecGit "merge remotes/origin/$Branch"
-                #$GitOutput = ExecGit "reset --hard origin/$branch"
-                $RepoStatus = ExecGit "status"
-
-                if($Logging) 
+                if (($localCommit -ne $originCommit) -or (-not $RepoStatus.Contains("branch is up-to-date")))
                 {
-                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit merge remotes/origin/$Branch :`n $GitOutput") 
-                    #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput") 
-                }
-                Write-Verbose "Local repo is behind origin/$Branch :`ngit merge remotes/origin/$branch :`n $GitOutput"
-                #Write-Verbose "Local repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput"
-            }
+                    # merge remote changes if local is behind origin seems to not work very well during provisioning - need to investigate further
+                    $GitOutput = ExecGit "merge remotes/origin/$Branch"
+                    $RepoStatus = ExecGit "status"
 
-            if (($Mode -eq "Clone") -or ($Mode -eq "Push"))
-            {
-                #
-                # Pushing of changes to remote has not been implemented yet, so we're treating it as a clone or now!
-                #
-                if ($Mode -eq "Push")
-                {
-                    Write-Verbose "PUSH Mode is not fully implemented yet!"
                     if($Logging) 
                     {
-                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nPUSH Mode is not fully implemented yet!") 
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit merge remotes/origin/$Branch :`n $GitOutput") 
+                        #Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput") 
                     }
+                    Write-Verbose "Local repo is behind origin/$Branch :`ngit merge remotes/origin/$branch :`n $GitOutput"
                 }
 
                 # Check if local repo has changes that are not in origin and reset the repo to origin.
@@ -293,39 +277,15 @@ function Set-TargetResource
                     Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus `n git clean -xdf `n $GitOutput"
                 }
             }
-            else
+            
+            if ($Mode -eq "CopyOnly")
             {
-                #
-                # Hard reset of repo to ensure that local commit matches remote - unstaged files will remain in place
-                #
-                if (-not ($RepoStatus.Contains("working directory clean")))
+                if($Logging) 
                 {
-                    # Check if local repo has changes that are not in origin and reset the repo to origin.
-                    # Each test-case below will currently result in local repo being hard reset to match origin.
-                    # Effectively any local changes to repo will be lost:
-                    #
-                    # "Your branch is ahead of" - local repo contains commits, which have not been merged with remote yet 
-                    # "no changes added to commit" - a tracked file has been modified locally, but has not been commited yet
-                    # "have diverged" - local and remote have at least one unmerged commit each, these must be merged before we can continue
-                    # "Changes to be committed" - local repo has staged files, which have not been commited yet
-                    #
-                    if (($RepoStatus.Contains("Your branch is ahead of")) -or
-                        ($RepoStatus.Contains("no changes added to commit")) -or 
-                        ($RepoStatus.Contains("have diverged")) -or 
-                        ($RepoStatus.Contains("Changes to be committed")))
-                    {
-                        # Reset local repo to match origin for all tracked files
-                        $GitOutput = ExecGit "reset --hard origin/$branch"
-                        $RepoStatus = ExecGit "status"
-
-                        if($Logging) 
-                        {
-                            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput") 
-                        }
-                        
-                        Write-Verbose "Local changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput"
-                    }
+                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nCopyOnly mode set - no need to sync: `n $GitOutput") 
                 }
+                
+                Write-Verbose "CopyOnly mode set - no need to sync: `n $GitOutput"
             }
 
         }
@@ -388,7 +348,7 @@ function Test-TargetResource
         [ValidateSet('Present','Absent')]
         [string]
         $Ensure = 'Present',
-        [ValidateSet('Clone','AllowUnstaged','Push')]
+        [ValidateSet('Clone','CopyOnly')]
         [string]
         $Mode = 'Clone',
         [parameter(Mandatory = $true)]
@@ -428,34 +388,34 @@ function Test-TargetResource
             Set-Location $RepoPath
             if (($GetResult.Destination -eq $Destination) -and ($GetResult.Source -eq $Source) -and ($GetResult.Branch -eq $Branch))
             {
-                # Check if origin contains changes which have not been merged locally
-                $Fetch = ExecGit "fetch origin"
-                if ($Fetch.Length -ne 0)
+                if ($Mode -eq "Clone")
                 {
-                    Write-Verbose "origin/$Branch has pending updates:`n$Fetch"
-                    if($Logging -eq $true) 
+                    # Check if origin contains changes which have not been merged locally
+                    $Fetch = ExecGit "fetch origin"
+                    if ($Fetch.Length -ne 0)
                     {
-                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`norigin/$Branch has pending updates:`n$Fetch")
+                        Write-Verbose "origin/$Branch has pending updates:`n$Fetch"
+                        if($Logging -eq $true) 
+                        {
+                            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`norigin/$Branch has pending updates:`n$Fetch")
+                        }
+                        return $false
                     }
-                    return $false
-                }
-                
-                # Ensure that local and remote commits match after a fetch operation has been made
-                $localCommit = ExecGit "rev-parse HEAD"
-                $originCommit = ExecGit "rev-parse origin/$Branch"
+                    
+                    # Ensure that local and remote commits match after a fetch operation has been made
+                    $localCommit = ExecGit "rev-parse HEAD"
+                    $originCommit = ExecGit "rev-parse origin/$Branch"
 
-                if (-not ($localCommit -eq $originCommit))
-                {
-                    Write-Verbose "Latest local commit does not match origin/$Branch"
-                    if($Logging -eq $true) 
+                    if (-not ($localCommit -eq $originCommit))
                     {
-                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLatest local commit does not match origin/$Branch")
+                        Write-Verbose "Latest local commit does not match origin/$Branch"
+                        if($Logging -eq $true) 
+                        {
+                            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLatest local commit does not match origin/$Branch")
+                        }
+                        return $false
                     }
-                    return $false
-                }
-
-                if (($Mode -eq "Clone") -or ($Mode -eq "Push"))
-                {
+                    
                     Write-Verbose "Repo mode set as `"$Mode`", checking for local changes"
                     
                     # Check for local repo status for local uncommited changes
