@@ -5,6 +5,9 @@
        [ValidateSet('Present','Absent')]
        [string]
        $Ensure = 'Present',
+       [ValidateSet('Clone','AllowUnstaged','Push')]
+       [string]
+       $Mode = 'Clone',
        [parameter(Mandatory = $true)]
        [string]
        $Source,
@@ -96,6 +99,7 @@
         Source = $SourceResult
         Ensure = $ensureResult
         Branch = $currentBranch
+        Mode = $Mode
     }  
 }
 
@@ -105,6 +109,9 @@ function Set-TargetResource
         [ValidateSet('Present','Absent')]
         [string]
         $Ensure = 'Present',
+        [ValidateSet('Clone','AllowUnstaged','Push')]
+        [string]
+        $Mode = 'Clone',
         [parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
         [string]
@@ -215,31 +222,7 @@ function Set-TargetResource
 
             $RepoStatus = ExecGit "status"
 
-            # Check if local repo has changes that are not in origin and reset the repo to origin.
-            # Each test-case below will currently result in local repo being hard reset to match origin.
-            # Effectively any local changes to repo will be lost:
-            #
-            # "Your branch is ahead of" - local repo contains commits, which have not been merged with remote yet 
-            # "no changes added to commit" - a tracked file has been modified locally, but has not been commited yet
-            # "have diverged" - local and remote have at least one unmerged commit each, these must be merged before we can continue
-            # "Changes to be committed" - local repo has staged files, which have not been commited yet
-            #
-            if (($RepoStatus.Contains("Your branch is ahead of")) -or
-                ($RepoStatus.Contains("no changes added to commit")) -or 
-                ($RepoStatus.Contains("have diverged")) -or 
-                ($RepoStatus.Contains("Changes to be committed")))
-            {
-                # Reset local repo to match origin for all tracked files
-                $GitOutput = ExecGit "reset --hard origin/$branch"
-                $RepoStatus = ExecGit "status"
 
-                if($Logging) 
-                {
-                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput") 
-                }
-                
-                Write-Verbose "Local changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput"
-            }
             
             if (($localCommit -ne $originCommit) -or (-not $RepoStatus.Contains("branch is up-to-date")))
             {
@@ -257,18 +240,94 @@ function Set-TargetResource
                 #Write-Verbose "Local repo is behind origin/$Branch :`ngit reset --hard origin/$branch :`n $GitOutput"
             }
 
-            if (-not ($RepoStatus.Contains("working directory clean")))
+            if (($Mode -eq "Clone") -or ($Mode -eq "Push"))
             {
-                # Remove any untracked files (-f [force], directories (-d) and any ignored files (-x)
-                $GitOutput = ExecGit "clean -xdf"
-                $RepoStatus = ExecGit "status"
-
-                if($Logging) 
+                #
+                # Pushing of changes to remote has not been implemented yet, so we're treating it as a clone or now!
+                #
+                if ($Mode -eq "Push")
                 {
-                    Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal repo contains uncommited changes! `n$RepoStatus `n git clean -xdf `n $GitOutput") 
+                    Write-Verbose "PUSH Mode is not fully implemented yet!"
+                    if($Logging) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nPUSH Mode is not fully implemented yet!") 
+                    }
                 }
-                Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus `n git clean -xdf `n $GitOutput"
+
+                # Check if local repo has changes that are not in origin and reset the repo to origin.
+                # Each test-case below will currently result in local repo being hard reset to match origin.
+                # Effectively any local changes to repo will be lost:
+                #
+                # "Your branch is ahead of" - local repo contains commits, which have not been merged with remote yet 
+                # "no changes added to commit" - a tracked file has been modified locally, but has not been commited yet
+                # "have diverged" - local and remote have at least one unmerged commit each, these must be merged before we can continue
+                # "Changes to be committed" - local repo has staged files, which have not been commited yet
+                #
+                if (($RepoStatus.Contains("Your branch is ahead of")) -or
+                    ($RepoStatus.Contains("no changes added to commit")) -or 
+                    ($RepoStatus.Contains("have diverged")) -or 
+                    ($RepoStatus.Contains("Changes to be committed")))
+                {
+                    # Reset local repo to match origin for all tracked files
+                    $GitOutput = ExecGit "reset --hard origin/$branch"
+                    $RepoStatus = ExecGit "status"
+
+                    if($Logging) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput") 
+                    }
+                    
+                    Write-Verbose "Local changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput"
+                }
+
+                if (-not ($RepoStatus.Contains("working directory clean")))
+                {
+                    # Remove any untracked files (-f [force], directories (-d) and any ignored files (-x)
+                    $GitOutput = ExecGit "clean -xdf"
+                    $RepoStatus = ExecGit "status"
+
+                    if($Logging) 
+                    {
+                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal repo contains uncommited changes! `n$RepoStatus `n git clean -xdf `n $GitOutput") 
+                    }
+                    Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus `n git clean -xdf `n $GitOutput"
+                }
             }
+            else
+            {
+                #
+                # Hard reset of repo to ensure that local commit matches remote - unstaged files will remain in place
+                #
+                if (-not ($RepoStatus.Contains("working directory clean")))
+                {
+                    # Check if local repo has changes that are not in origin and reset the repo to origin.
+                    # Each test-case below will currently result in local repo being hard reset to match origin.
+                    # Effectively any local changes to repo will be lost:
+                    #
+                    # "Your branch is ahead of" - local repo contains commits, which have not been merged with remote yet 
+                    # "no changes added to commit" - a tracked file has been modified locally, but has not been commited yet
+                    # "have diverged" - local and remote have at least one unmerged commit each, these must be merged before we can continue
+                    # "Changes to be committed" - local repo has staged files, which have not been commited yet
+                    #
+                    if (($RepoStatus.Contains("Your branch is ahead of")) -or
+                        ($RepoStatus.Contains("no changes added to commit")) -or 
+                        ($RepoStatus.Contains("have diverged")) -or 
+                        ($RepoStatus.Contains("Changes to be committed")))
+                    {
+                        # Reset local repo to match origin for all tracked files
+                        $GitOutput = ExecGit "reset --hard origin/$branch"
+                        $RepoStatus = ExecGit "status"
+
+                        if($Logging) 
+                        {
+                            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nLocal changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput") 
+                        }
+                        
+                        Write-Verbose "Local changes made to repo - resetting repo: git reset --hard origin/$Branch `n $GitOutput"
+                    }
+                }
+            }
+
         }
 
         if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
@@ -317,8 +376,8 @@ function Set-TargetResource
             {
                 Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`n$Destination was not empty, so was not removed")
             }
-        };
-
+        }
+    # TODO: $DestinationZip removal
     }
 }
 
@@ -329,6 +388,9 @@ function Test-TargetResource
         [ValidateSet('Present','Absent')]
         [string]
         $Ensure = 'Present',
+        [ValidateSet('Clone','AllowUnstaged','Push')]
+        [string]
+        $Mode = 'Clone',
         [parameter(Mandatory = $true)]
         [string]
         $Source,
@@ -378,9 +440,10 @@ function Test-TargetResource
                     return $false
                 }
                 
-                # Ensure that local and remote commits match after a fetch operation has been mad
+                # Ensure that local and remote commits match after a fetch operation has been made
                 $localCommit = ExecGit "rev-parse HEAD"
                 $originCommit = ExecGit "rev-parse origin/$Branch"
+
                 if (-not ($localCommit -eq $originCommit))
                 {
                     Write-Verbose "Latest local commit does not match origin/$Branch"
@@ -391,24 +454,34 @@ function Test-TargetResource
                     return $false
                 }
 
-                # Final check for local repo status for local uncommited changes
-                $RepoStatus = ExecGit "status"
-                if (-not ($RepoStatus.Contains("working directory clean")))
+                if (($Mode -eq "Clone") -or ($Mode -eq "Push"))
                 {
-                    Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus"
-                    if($Logging -eq $true) 
+                    Write-Verbose "Repo mode set as `"$Mode`", checking for local changes"
+                    
+                    # Check for local repo status for local uncommited changes
+                    # TODO: for push mode we will need tests for local commits, which have not been pushed yet
+                    $RepoStatus = ExecGit "status"
+                    if (-not ($RepoStatus.Contains("working directory clean")))
                     {
-                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo contains uncommited changes! `n$RepoStatus")
+                        Write-Verbose "Local repo contains uncommited changes! `n$RepoStatus"
+                        if($Logging -eq $true) 
+                        {
+                            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Warning -EventId 1000 -Message ("Repo: $Name`nLocal repo contains uncommited changes! `n$RepoStatus")
+                        }
+                        return $false
                     }
-                    return $false
+                    else
+                    {
+                        Write-Verbose "All tests passed, repo test result is true: `n$RepoStatus"
+                        if($Logging -eq $true) 
+                        {
+                            Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nAll tests passed, repo test result is true: `n$RepoStatus")
+                        }
+                        return $true
+                    }
                 }
                 else
                 {
-                    Write-Verbose "All tests passed, repo test result is true: `n$RepoStatus"
-                    if($Logging -eq $true) 
-                    {
-                        Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Repo: $Name`nAll tests passed, repo test result is true: `n$RepoStatus")
-                    }
                     return $true
                 }
             }
