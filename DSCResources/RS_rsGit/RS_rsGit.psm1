@@ -103,7 +103,7 @@ function Set-TargetResource
         $module = Import-Module $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PassThru
         $moduleName = $module.Name
         $version = $module.Version.ToString()
-        Remove-Module $moduleName
+        Remove-Module $moduleName -Force
    
         $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
         $outputPath = Join-Path $DestinationZip $zipFilename      
@@ -118,7 +118,7 @@ function Set-TargetResource
         $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
         $outputPath = Join-Path $DestinationZip $zipFilename 
         if(!(Test-Path -Path $outputPath) ) {
-          Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath 
+          Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath -Force
         }
         else {
           Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath -Update
