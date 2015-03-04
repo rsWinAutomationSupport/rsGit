@@ -1,4 +1,60 @@
-﻿function Get-TargetResource
+﻿Function New-ResourceZip {
+   param
+   (
+      $modulePath,
+      $outputDir
+   )
+   #Read the module name & version
+   $module = Import-Module $modulePath -PassThru
+   $moduleName = $module.Name
+   $version = $module.Version.ToString()
+   Remove-Module $moduleName
+   
+   $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
+   $outputPath = Join-Path $outputDir $zipFilename
+   if ( -not (Test-Path $outputPath) ) 
+   { 
+      # Code to create an 'acceptable' structured ZIP file for DSC
+      # Courtesy of: @Neptune443 (http://blog.cosmoskey.com/powershell/desired-state-configuration-in-pull-mode-over-smb/)
+      [byte[]]$data = New-Object byte[] 22
+      $data[0] = 80
+      $data[1] = 75
+      $data[2] = 5
+      $data[3] = 6
+      [System.IO.File]::WriteAllBytes($outputPath, $data)
+      $acl = Get-Acl -Path $outputPath
+      
+      $shellObj = New-Object -ComObject "Shell.Application"
+      $zipFileObj = $shellObj.NameSpace($outputPath)
+      if ($zipFileObj -ne $null)
+      {
+         $target = get-item $modulePath
+         # CopyHere might be async and we might need to wait for the Zip file to have been created full before we continue
+         # Added flags to minimize any UI & prompts etc.
+         $zipFileObj.CopyHere($target.FullName, 0x14)
+         do 
+         {
+            $zipCount = $zipFileObj.Items().count
+            Start-sleep -Milliseconds 50
+         }
+         While ($zipFileObj.Items().count -lt 1)
+         [Runtime.InteropServices.Marshal]::ReleaseComObject($zipFileObj) | Out-Null
+         Set-Acl -Path $outputPath -AclObject $acl
+      }
+      else
+      {
+         Throw "Failed to create the zip file"
+      }
+   }
+   else
+   {
+      $outputPath = $null
+   }
+   
+   return $outputPath
+}
+
+function Get-TargetResource
 {
    [OutputType([Hashtable])]
    param (
@@ -84,47 +140,29 @@ function Set-TargetResource
          if((Test-Path -Path $Destination) -eq $false) { 
             New-Item $Destination -ItemType Directory -Force 
          }
-         Set-Location $Destination
+         chdir $Destination
          if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git clone --branch $branch $Source") }
          Start -Wait -NoNewWindow "C:\Program Files (x86)\Git\bin\git.exe" -ArgumentList "clone --branch $Branch $Source"
       }
       
       else 
       {
-         Set-Location (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
+         chdir (Join-Path $Destination -ChildPath ($Source.split("/."))[$i])
          if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("$Source : git checkout $branch;git reset --hard; git clean -f -d; git pull") }
          start -Wait 'C:\Program Files (x86)\Git\cmd\git.exe' -ArgumentList "checkout $Branch; reset --hard; clean -f -d; fetch origin $Branch; merge remotes/origin/$Branch"
       }
       if ( -not ([String]::IsNullOrEmpty($DestinationZip)) )
       {
          if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip") }
-         
-         ### new
-        $module = Import-Module $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PassThru
-        $moduleName = $module.Name
-        $version = $module.Version.ToString()
-        #Remove-Module $moduleName -Force
-   
-        $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
-        $outputPath = Join-Path $DestinationZip $zipFilename      
-         ###
-         
-         #$resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
-        if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Checksum") }
-        $module = Import-Module $(Join-Path $Destination -ChildPath ($Source.split("/."))[5]) -PassThru
-        $moduleName = $module.Name
-        $version = $module.Version.ToString()
-        Remove-Module $moduleName
-        $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
-        $outputPath = Join-Path $DestinationZip $zipFilename 
-        if(!(Test-Path -Path $outputPath) ) {
-          Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath -Force
-        }
-        else {
-          Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath -Update
-        }
-        Set-Content -Path $($outputPath, 'checksum' -join '') -Value ((Get-FileHash $outputPath).Hash)
-         
+         $resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
+         if ( $resourceZipPath -ne $null )
+         {
+            if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Checksum") }
+            Remove-Item -Path ($resourceZipPath + ".checksum") -Force -ErrorAction SilentlyContinue
+            New-Item -Path ($resourceZipPath + ".checksum") -ItemType file
+            $hash = (Get-FileHash -Path $resourceZipPath).Hash
+            [System.IO.File]::AppendAllText(($resourceZipPath + '.checksum'), $hash)
+         }
       }
    }
    if ($Ensure -eq "Absent")
