@@ -100,25 +100,30 @@ function Set-TargetResource
          if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Resource Zip") }
          
          ### new
-$module = Import-Module $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PassThru
-$moduleName = $module.Name
-$version = $module.Version.ToString()
-Remove-Module $moduleName
+        $module = Import-Module $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -PassThru
+        $moduleName = $module.Name
+        $version = $module.Version.ToString()
+        Remove-Module $moduleName
    
-$zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
-$outputPath = Join-Path $DestinationZip $zipFilename      
+        $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
+        $outputPath = Join-Path $DestinationZip $zipFilename      
          ###
          
          #$resourceZipPath = New-ResourceZip -modulePath $(Join-Path $Destination -ChildPath ($Source.split("/."))[$i]) -outputDir $DestinationZip 
-if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Checksum") }
-$module = Import-Module $(Join-Path $Destination -ChildPath ($Source.split("/."))[5]) -PassThru
-$moduleName = $module.Name
-$version = $module.Version.ToString()
-Remove-Module $moduleName
-$zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
-$outputPath = Join-Path $DestinationZip $zipFilename 
-Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath 
-Set-Content -Path $($outputPath, 'checksum' -join '') -Value ((Get-FileHash $outputPath).Hash)
+        if($Logging -eq $true) { Write-EventLog -LogName DevOps -Source $myLogSource -EntryType Information -EventId 1000 -Message ("Starting Checksum") }
+        $module = Import-Module $(Join-Path $Destination -ChildPath ($Source.split("/."))[5]) -PassThru
+        $moduleName = $module.Name
+        $version = $module.Version.ToString()
+        Remove-Module $moduleName
+        $zipFilename = ("{0}_{1}.zip" -f $moduleName, $version)
+        $outputPath = Join-Path $DestinationZip $zipFilename 
+        if(!(Test-Path -Path $outputPath) ) {
+          Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath 
+        }
+        else {
+          Compress-Archive -Path $(Join-Path $Destination -ChildPath $name) -DestinationPath $outputPath -Update
+        }
+        Set-Content -Path $($outputPath, 'checksum' -join '') -Value ((Get-FileHash $outputPath).Hash)
          
       }
    }
