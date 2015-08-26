@@ -561,7 +561,6 @@ function ExecGit
 
     if (-not $GitPath)
     {
-        Write-Verbose "Git path not provided - trying to locate it automatically..."
         $GitPath = (Get-Command git.exe).Path
     }
 
