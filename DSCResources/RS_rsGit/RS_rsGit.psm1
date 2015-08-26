@@ -613,13 +613,14 @@ function SetRepoPath
 function IsValidRepo
 {
     param(
-		[Parameter(Position=0,Mandatory = $true)][string]$RepoPath
+		[Parameter(Mandatory = $true)][string]$GitPath,
+        [Parameter(Position=0,Mandatory = $true)][string]$RepoPath
 	)
 
     if (Test-Path $RepoPath)
     {
         Set-Location $RepoPath
-        $output = (ExecGit -args "status")
+        $output = (ExecGit --GitPath $GitPath -args "status")
         if ($output -notcontains "Not a git repository")
         {
             return $true
