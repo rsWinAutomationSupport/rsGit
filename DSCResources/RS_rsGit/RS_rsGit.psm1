@@ -180,7 +180,7 @@ function Set-TargetResource
         }
         #>
         
-        $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name)
+        $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name -GitPath $GitPath)
         
         # Retrieve any changes, which have not been merged locally
         $Fetch = ExecGit -GitPath $GitPath -args "fetch origin"
@@ -385,7 +385,7 @@ function Test-TargetResource
 
     $RepoPath = (SetRepoPath -Source $Source -Destination $Destination)
 
-    $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name)
+    $GetResult = (Get-TargetResource -Ensure $Ensure -Source $Source -Destination $Destination -Branch $Branch -Name $Name -GitPath $GitPath)
 
     if ($Ensure -eq "Present")
     {
