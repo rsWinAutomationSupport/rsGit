@@ -555,13 +555,19 @@ Function New-ResourceZip
 function ExecGit
 {
 	param(
-		[Parameter(Mandatory = $true)][string]$GitPath,
+		[string]$GitPath,
         [Parameter(Mandatory = $true)][string]$args
 	)
 
-    if (-not ($GitPath))
+    if (-not $GitPath)
     {
+        Write-Verbose "Git path not provided - trying to locate it automatically..."
         $GitPath = (Get-Command git.exe).Path
+    }
+
+    if (-not (Test-Path $GitPath))
+    {
+        Throw "Git executable not found at $GitPath"
     }
 
     $location = Get-Location
@@ -617,7 +623,7 @@ function SetRepoPath
 function IsValidRepo
 {
     param(
-		[Parameter(Mandatory = $true)][string]$GitPath,
+		[string]$GitPath,
         [Parameter(Mandatory = $true)][string]$RepoPath
 	)
 
