@@ -41,7 +41,7 @@
 
     if (Test-Path $RepoPath)
     {
-        if (IsValidRepo -RepoPath $RepoPath)
+        if (IsValidRepo -RepoPath $RepoPath -GitPath $GitPath)
         {
             Set-Location $RepoPath
             $ensureResult = "Present"
@@ -618,7 +618,7 @@ function IsValidRepo
 {
     param(
 		[Parameter(Mandatory = $true)][string]$GitPath,
-        [Parameter(Position=0,Mandatory = $true)][string]$RepoPath
+        [Parameter(Mandatory = $true)][string]$RepoPath
 	)
 
     if (Test-Path $RepoPath)
