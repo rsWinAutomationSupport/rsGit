@@ -559,7 +559,11 @@ function ExecGit
         [Parameter(Mandatory = $true)][string]$args
 	)
 
-    # Conifugraiton and DSC resource-wide variables
+    if (-not ($GitPath))
+    {
+        $GitPath = (Get-Command git.exe).Path
+    }
+
     $location = Get-Location
 
     try
@@ -620,7 +624,7 @@ function IsValidRepo
     if (Test-Path $RepoPath)
     {
         Set-Location $RepoPath
-        $output = (ExecGit --GitPath $GitPath -args "status")
+        $output = (ExecGit -GitPath $GitPath -args "status")
         if ($output -notcontains "Not a git repository")
         {
             return $true
