@@ -25,7 +25,7 @@
         [bool]
         $Logging,
         [string]
-        $GitPath =  "C:\Program Files (x86)\Git\cmd\git.exe"
+        $GitPath
     )
     
     try
@@ -133,7 +133,7 @@ function Set-TargetResource
         [bool]
         $Logging,
         [string]
-        $GitPath =  "C:\Program Files (x86)\Git\cmd\git.exe"
+        $GitPath
     )
     try
     {
@@ -373,7 +373,7 @@ function Test-TargetResource
         [bool]
         $Logging,
         [string]
-        $GitPath =  "C:\Program Files (x86)\Git\cmd\git.exe"
+        $GitPath
     )
 
     try
@@ -555,7 +555,7 @@ Function New-ResourceZip
 function ExecGit
 {
 	param(
-		[Parameter(Mandatory = $true)][string]$GitPath = "C:\Program Files (x86)\Git\cmd\git.exe",
+		[Parameter(Mandatory = $true)][string]$GitPath,
         [Parameter(Mandatory = $true)][string]$args
 	)
 
