@@ -614,7 +614,7 @@ function SetRepoPath
         [Parameter(Position=1,Mandatory = $true)][string]$Destination
     )
 
-    $RepoPath = Join-Path $Destination -ChildPath ($Source.TrimEnd(".git")).Split("/")[-1]
+    $RepoPath = Join-Path $Destination -ChildPath ($Source -replace "\.git$").Split("/")[-1]
     
     return $RepoPath
 }
